@@ -1,0 +1,128 @@
+abi:
+  package: clob_engine
+  abi-version: 1
+  package-version: 1
+  description: "Monolithic High-Frequency Central Limit Order Book for ThruVM"
+
+types:
+  - name: clob_order
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: order_id
+            field-type:
+              primitive: u64
+          - name: trader
+            field-type:
+              array:
+                element-type:
+                  primitive: u8
+                size:
+                  literal:
+                    u64: 32
+          - name: price_hi
+            field-type:
+              primitive: u64
+          - name: price_lo
+            field-type:
+              primitive: u64
+          - name: qty
+            field-type:
+              primitive: u64
+          - name: side
+            field-type:
+              primitive: u8
+          - name: status
+            field-type:
+              primitive: u8
+          - name: timestamp
+            field-type:
+              primitive: u32
+
+  - name: clob_state
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: version
+            field-type:
+              primitive: u32
+          - name: next_order_id
+            field-type:
+              primitive: u64
+          - name: bid_count
+            field-type:
+              primitive: u32
+          - name: ask_count
+            field-type:
+              primitive: u32
+          - name: bids
+            field-type:
+              array:
+                element-type:
+                  type-ref:
+                    name: clob_order
+                size:
+                  literal:
+                    u64: 256
+          - name: asks
+            field-type:
+              array:
+                element-type:
+                  type-ref:
+                    name: clob_order
+                size:
+                  literal:
+                    u64: 256
+
+  - name: clob_init_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: clob_account_idx
+            field-type:
+              primitive: u16
+
+  - name: clob_place_order_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: clob_account_idx
+            field-type:
+              primitive: u16
+          - name: side
+            field-type:
+              primitive: u8
+          - name: price_hi
+            field-type:
+              primitive: u64
+          - name: price_lo
+            field-type:
+              primitive: u64
+          - name: qty
+            field-type:
+              primitive: u64
+
+  - name: clob_cancel_order_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: clob_account_idx
+            field-type:
+              primitive: u16
+          - name: order_id
+            field-type:
+              primitive: u64

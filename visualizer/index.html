@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thru Quant Core — Institutional Oracle & CLOB Visualizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #08090b;
+            --bg-surface: #101216;
+            --bg-surface-elevated: #16191f;
+            --border-subtle: #1e222b;
+            --border-medium: #2a303d;
+            --text-primary: #f0f3f6;
+            --text-secondary: #8b949e;
+            --text-muted: #586069;
+            --accent-primary: #3b82f6;
+            --green: #10b981;
+            --green-bg: rgba(16, 185, 129, 0.12);
+            --red: #ef4444;
+            --red-bg: rgba(239, 68, 68, 0.12);
+            --amber: #f59e0b;
+            --amber-bg: rgba(245, 158, 11, 0.12);
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-sans: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        header {
+            background-color: var(--bg-surface);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 16px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-badge {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 13px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .brand-title {
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .network-pill {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            background-color: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            padding: 2px 8px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .network-pill::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #60a5fa;
+            box-shadow: 0 0 8px #60a5fa;
+        }
+
+        .header-stats {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-secondary);
+        }
+
+        .stat-item span.val {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .main-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 340px 1fr 380px;
+            gap: 16px;
+            padding: 16px 24px;
+        }
+
+        .panel {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 12px 16px;
+            background-color: var(--bg-surface-elevated);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .panel-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tag-pill {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .tag-regime {
+            background-color: var(--amber-bg);
+            color: var(--amber);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .tag-rv64 {
+            background-color: rgba(139, 92, 246, 0.15);
+            color: #a78bfa;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        /* Feeder & Oracle Table */
+        .table-container {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        th {
+            text-align: left;
+            padding: 10px 14px;
+            font-size: 11px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-subtle);
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-surface);
+            font-weight: 500;
+        }
+
+        td {
+            padding: 8px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            color: var(--text-primary);
+        }
+
+        tr:hover td {
+            background-color: var(--bg-surface-elevated);
+        }
+
+        .text-right { text-align: right; }
+        .text-green { color: var(--green); }
+        .text-red { color: var(--red); }
+        .text-muted { color: var(--text-muted); }
+
+        /* Orderbook Center Ladder */
+        .orderbook-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .book-half {
+            flex: 1;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .book-row {
+            display: grid;
+            grid-template-columns: 100px 100px 1fr;
+            padding: 4px 14px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .book-row:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .book-depth-bar {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            opacity: 0.15;
+            pointer-events: none;
+            transition: width 0.2s ease;
+        }
+
+        .book-depth-ask { background-color: var(--red); }
+        .book-depth-bid { background-color: var(--green); }
+
+        .spread-bar {
+            background-color: var(--bg-surface-elevated);
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 12px;
+        }
+
+        /* Order Execution Form */
+        .trade-form {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-family: var(--font-mono);
+        }
+
+        input {
+            background-color: var(--bg-base);
+            border: 1px solid var(--border-medium);
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--accent-primary);
+        }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        button.btn-side {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-side-buy {
+            background-color: var(--green-bg);
+            color: var(--green);
+            border-color: rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-side-buy.active {
+            background-color: var(--green);
+            color: #000;
+        }
+
+        .btn-side-sell {
+            background-color: var(--red-bg);
+            color: var(--red);
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-side-sell.active {
+            background-color: var(--red);
+            color: #fff;
+        }
+
+        .btn-submit {
+            background-color: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .btn-submit:hover {
+            background-color: #2563eb;
+        }
+
+        /* Trades Log */
+        .trades-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+        }
+
+        .trade-item {
+            padding: 6px 10px;
+            background-color: var(--bg-surface-elevated);
+            border-radius: 4px;
+            border-left: 3px solid var(--accent-primary);
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand-container">
+            <span class="brand-badge">THRU·VM</span>
+            <span class="brand-title">Quant Core Monolithic Engine</span>
+            <span class="network-pill">Alphanet Live</span>
+        </div>
+        <div class="header-stats">
+            <div class="stat-item">Rate Limit: <span class="val text-green">0 reqs (Local IPC)</span></div>
+            <div class="stat-item">VM Arch: <span class="val">RV64IMC (Q64.64)</span></div>
+            <div class="stat-item">Storage: <span class="val">16MB Direct DMA</span></div>
+            <div class="stat-item">Slot: <span class="val" id="slotDisplay">7,495,840</span></div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Panel 1: Market Oracle Live Quotes -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Hansen Market Oracle</span>
+                <span class="tag-pill tag-regime" id="regimeBadge">TRENDING DOWN</span>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th class="text-right">Price ($)</th>
+                            <th class="text-right">Vol (bps)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="oracleTableBody">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Panel 2: Monolithic CLOB Depth Ladder -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">ETH/USDT Limit Orderbook (CLOB)</span>
+                <span class="tag-pill tag-rv64">Zero-Copy Ring Buffer</span>
+            </div>
+            <div class="orderbook-container">
+                <!-- Asks (Sells) -->
+                <div class="book-half" id="asksContainer">
+                    <!-- Populated dynamically -->
+                </div>
+
+                <!-- Spread Bar -->
+                <div class="spread-bar">
+                    <div>
+                        <span class="text-muted">Last Price:</span>
+                        <span style="font-weight: 700; font-size: 14px; margin-left: 6px;" id="lastPriceDisplay">$2,502.49</span>
+                    </div>
+                    <div>
+                        <span class="text-muted">Spread:</span>
+                        <span class="text-amber" id="spreadDisplay">$0.10 (0.4 bps)</span>
+                    </div>
+                </div>
+
+                <!-- Bids (Buys) -->
+                <div class="book-half" id="bidsContainer">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel 3: Order Entry & Real-time Trades -->
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Direct On-Chain Execution</span>
+                <span class="tag-pill" style="background:#222; color:#aaa;">ThruVM ABI</span>
+            </div>
+            <div class="trade-form">
+                <div class="btn-group">
+                    <button class="btn-side btn-side-buy active" id="btnBuy" onclick="setSide('BUY')">BUY / BID</button>
+                    <button class="btn-side btn-side-sell" id="btnSell" onclick="setSide('SELL')">SELL / ASK</button>
+                </div>
+                <div class="form-group">
+                    <label>Limit Price (Q64.64 / USDT)</label>
+                    <input type="number" id="inputPrice" value="2502.40" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Quantity (ETH)</label>
+                    <input type="number" id="inputQty" value="1.50" step="0.1">
+                </div>
+                <button class="btn-submit" onclick="submitSimulatedOrder()">SUBMIT LIMIT ORDER</button>
+            </div>
+
+            <div class="panel-header" style="border-top: 1px solid var(--border-subtle);">
+                <span class="panel-title">Recent Matches & Engine Events</span>
+            </div>
+            <div class="trades-container" id="tradesLog">
+                <div class="trade-item">
+                    <span>MATCH BID #104 @ $2,502.50</span>
+                    <span class="text-green">+2.4 ETH</span>
+                </div>
+                <div class="trade-item">
+                    <span>RESTING ASK #105 @ $2,502.60</span>
+                    <span class="text-secondary">4.0 ETH</span>
+                </div>
+                <div class="trade-item">
+                    <span>ORACLE SYNC (28 symbols)</span>
+                    <span class="text-muted">Slot 7495832</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const oracleData = [
+            { id: 1, sym: "BTCUSDT", price: 83380.80, vol: 180 },
+            { id: 2, sym: "ETHUSDT", price: 2502.49, vol: 210 },
+            { id: 3, sym: "SOLUSDT", price: 106.31, vol: 290 },
+            { id: 4, sym: "APTUSDT", price: 0.8187, vol: 320 },
+            { id: 5, sym: "SUIUSDT", price: 1.0384, vol: 310 },
+            { id: 6, sym: "BNBUSDT", price: 585.20, vol: 140 },
+            { id: 7, sym: "DOGEUSDT", price: 0.1245, vol: 410 },
+            { id: 8, sym: "XRPUSDT", price: 0.5420, vol: 220 },
+            { id: 17, sym: "SUSDT", price: 0.0641, vol: 348 },
+            { id: 18, sym: "UNIUSDT", price: 7.247, vol: 260 },
+            { id: 20, sym: "TAOUSDT", price: 273.19, vol: 350 },
+            { id: 21, sym: "PEPEUSDT", price: 0.0000085, vol: 520 },
+            { id: 29, sym: "STXUSDT", price: 0.4127, vol: 280 },
+            { id: 30, sym: "FILUSDT", price: 1.1541, vol: 270 }
+        ];
+
+        let asks = [
+            { price: 2503.00, qty: 12.5, total: 34.2 },
+            { price: 2502.80, qty: 8.2, total: 21.7 },
+            { price: 2502.70, qty: 5.0, total: 13.5 },
+            { price: 2502.60, qty: 4.5, total: 8.5 },
+            { price: 2502.50, qty: 4.0, total: 4.0 }
+        ];
+
+        let bids = [
+            { price: 2502.40, qty: 3.5, total: 3.5 },
+            { price: 2502.30, qty: 6.0, total: 9.5 },
+            { price: 2502.20, qty: 7.8, total: 17.3 },
+            { price: 2502.00, qty: 10.2, total: 27.5 },
+            { price: 2501.80, qty: 14.0, total: 41.5 }
+        ];
+
+        let currentSide = 'BUY';
+
+        function renderOracle() {
+            const tbody = document.getElementById("oracleTableBody");
+            tbody.innerHTML = oracleData.map(d => `
+                <tr>
+                    <td style="font-weight:600;">${d.sym}</td>
+                    <td class="text-right">$${d.price > 1 ? d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4}) : d.price.toFixed(6)}</td>
+                    <td class="text-right text-muted">${d.vol}</td>
+                </tr>
+            `).join("");
+        }
+
+        function renderBook() {
+            const asksDiv = document.getElementById("asksContainer");
+            const maxAskTotal = 45.0;
+            asksDiv.innerHTML = asks.slice().reverse().map(a => `
+                <div class="book-row">
+                    <div class="book-depth-bar book-depth-ask" style="width: ${(a.total / maxAskTotal) * 100}%;"></div>
+                    <span class="text-red">$${a.price.toFixed(2)}</span>
+                    <span class="text-right">${a.qty.toFixed(2)}</span>
+                    <span class="text-right text-muted">${a.total.toFixed(2)}</span>
+                </div>
+            `).join("");
+
+            const bidsDiv = document.getElementById("bidsContainer");
+            const maxBidTotal = 45.0;
+            bidsDiv.innerHTML = bids.map(b => `
+                <div class="book-row">
+                    <div class="book-depth-bar book-depth-bid" style="width: ${(b.total / maxBidTotal) * 100}%;"></div>
+                    <span class="text-green">$${b.price.toFixed(2)}</span>
+                    <span class="text-right">${b.qty.toFixed(2)}</span>
+                    <span class="text-right text-muted">${b.total.toFixed(2)}</span>
+                </div>
+            `).join("");
+        }
+
+        function setSide(side) {
+            currentSide = side;
+            document.getElementById("btnBuy").classList.toggle("active", side === 'BUY');
+            document.getElementById("btnSell").classList.toggle("active", side === 'SELL');
+        }
+
+        function submitSimulatedOrder() {
+            const price = parseFloat(document.getElementById("inputPrice").value);
+            const qty = parseFloat(document.getElementById("inputQty").value);
+            const log = document.getElementById("tradesLog");
+
+            const item = document.createElement("div");
+            item.className = "trade-item";
+            item.innerHTML = `
+                <span>${currentSide === 'BUY' ? 'BID PLACED' : 'ASK PLACED'} @ $${price.toFixed(2)}</span>
+                <span class="${currentSide === 'BUY' ? 'text-green' : 'text-red'}">${qty.toFixed(2)} ETH</span>
+            `;
+            log.insertBefore(item, log.firstChild);
+        }
+
+        // Live simulation slot tick
+        let slot = 7495840;
+        setInterval(() => {
+            slot += 1;
+            document.getElementById("slotDisplay").innerText = slot.toLocaleString();
+        }, 1000);
+
+        renderOracle();
+        renderBook();
+    </script>
+</body>
+</html>

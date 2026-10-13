@@ -1,0 +1,87 @@
+abi:
+  package: market_oracle
+  abi-version: 1
+  package-version: 1
+  description: "High-Frequency Institutional Quant Oracle for Thru Network"
+
+types:
+  - name: oracle_entry
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: symbol_id
+            field-type:
+              primitive: u32
+          - name: price_q64_hi
+            field-type:
+              primitive: u64
+          - name: price_q64_lo
+            field-type:
+              primitive: u64
+          - name: volatility_bps
+            field-type:
+              primitive: u32
+          - name: timestamp
+            field-type:
+              primitive: u32
+
+  - name: oracle_account_data
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: version
+            field-type:
+              primitive: u32
+          - name: regime_id
+            field-type:
+              primitive: u32
+          - name: last_update_ts
+            field-type:
+              primitive: u32
+          - name: entry_count
+            field-type:
+              primitive: u32
+          - name: entries
+            field-type:
+              array:
+                element-type:
+                  type-ref:
+                    name: oracle_entry
+                size:
+                  literal:
+                    u64: 32
+
+  - name: oracle_init_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: oracle_account_idx
+            field-type:
+              primitive: u16
+
+  - name: oracle_update_hdr
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: oracle_account_idx
+            field-type:
+              primitive: u16
+          - name: regime_id
+            field-type:
+              primitive: u32
+          - name: timestamp
+            field-type:
+              primitive: u32
+          - name: entry_count
+            field-type:
+              primitive: u32

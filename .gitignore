@@ -1,0 +1,17 @@
+# Build artifacts
+build/
+*.bin
+*.elf
+*.s
+*.o
+*.a
+*.d
+
+# Test binaries
+tests/test_math
+tests/test_simulation
+
+# System & editor files
+.DS_Store
+*.swp
+*~
