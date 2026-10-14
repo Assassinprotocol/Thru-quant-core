@@ -10,6 +10,7 @@ build/
 # Test & feeder binaries
 tests/test_math
 tests/test_simulation
+tests/test_contracts
 feeder/feeder
 
 # System & editor files

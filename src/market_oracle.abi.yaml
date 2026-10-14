@@ -112,3 +112,15 @@ types:
           - name: entry_count
             field-type:
               primitive: u32
+
+  - name: oracle_resume_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: oracle_account_idx
+            field-type:
+              primitive: u16

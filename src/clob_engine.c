@@ -130,7 +130,17 @@ static void handle_init(void const *instruction_data, ulong instruction_data_sz)
         tsdk_revert(CLOB_ERR_DATA_ACCESS_FAILED);
     }
 
-    if (!tsdk_account_exists(acc_idx)) {
+    /* Multi-layer account existence and anti-state-wipe guard */
+    if (tsdk_account_exists(acc_idx)) {
+        tsdk_account_meta_t const *existing_meta = tsdk_get_account_meta(acc_idx);
+        if (existing_meta->data_sz >= sizeof(clob_state_t)) {
+            clob_state_t const *existing = (clob_state_t const *)tsdk_get_account_data_ptr(acc_idx);
+            if (existing->version != 0) {
+                tsdk_printf("clob_engine: account %u already initialized (version=%u)", acc_idx, existing->version);
+                tsdk_revert(CLOB_ERR_ALREADY_INITIALIZED);
+            }
+        }
+    } else {
         ulong proof_sz = (instruction_data_sz > sizeof(clob_init_args_t)) ? (instruction_data_sz - sizeof(clob_init_args_t)) : 0UL;
         void const *proof = (proof_sz > 0UL) ? ((uchar const *)instruction_data + sizeof(clob_init_args_t)) : NULL;
 
@@ -164,7 +174,7 @@ static void handle_init(void const *instruction_data, ulong instruction_data_sz)
     state->next_order_id = 1;
     state->best_bid_idx = -1;
     state->best_ask_idx = -1;
-    state->min_notional = 1; /* Minimum notional Q64 unit */
+    state->min_notional = 1; /* Minimum notional: $1 USD */
 
     for (int i = 0; i < CLOB_MAX_ORDERS_PER_SIDE; i++) {
         state->bids[i].prev_idx = -1;
@@ -191,17 +201,37 @@ static void handle_place_limit(void const *instruction_data, ulong instruction_d
     }
 
     ushort acc_idx = args->clob_account_idx;
-    if (!tsdk_is_account_idx_valid(acc_idx)) {
+    if (!tsdk_is_account_idx_valid(acc_idx) || !tsdk_account_exists(acc_idx)) {
+        tsdk_revert(CLOB_ERR_DATA_ACCESS_FAILED);
+    }
+
+    tsdk_account_meta_t const *meta = tsdk_get_account_meta(acc_idx);
+    if (meta->data_sz < sizeof(clob_state_t)) {
         tsdk_revert(CLOB_ERR_DATA_ACCESS_FAILED);
     }
 
     tsys_set_account_data_writable(acc_idx);
 
     clob_state_t *state = (clob_state_t *)tsdk_get_account_data_ptr(acc_idx);
-    tn_pubkey_t const *fee_payer = &tsdk_get_txn()->hdr.v1.fee_payer_pubkey;
-    uint32_t cur_ts = (uint32_t)(tsdk_get_current_block_ctx()->slot);
+    if (state->version != 1) {
+        tsdk_revert(CLOB_ERR_DATA_ACCESS_FAILED);
+    }
 
     q64_t in_price = (((q64_t)args->price_hi) << 64) | ((q64_t)args->price_lo);
+    if (in_price <= 0) {
+        tsdk_revert(CLOB_ERR_INVALID_PRICE);
+    }
+
+    /* Anti-DoS Min Notional Gate */
+    q64_t notional = q64_mul(in_price, q64_from_int((int64_t)args->qty));
+    q64_t min_notional_q64 = q64_from_int((int64_t)state->min_notional);
+    if (notional < min_notional_q64) {
+        tsdk_printf("clob_engine: notional %ld below min %lu", q64_to_int(notional), state->min_notional);
+        tsdk_revert(CLOB_ERR_NOTIONAL_TOO_LOW);
+    }
+
+    tn_pubkey_t const *fee_payer = &tsdk_get_txn()->hdr.v1.fee_payer_pubkey;
+    uint32_t cur_ts = (uint32_t)(tsdk_get_current_block_ctx()->slot);
     uint64_t rem_qty = args->qty;
 
     if (args->side == CLOB_SIDE_BID) {

@@ -5,18 +5,33 @@
 ![Network](https://img.shields.io/badge/Network-Thru%20Alphanet-black?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
-Institutional-grade quantitative finance and deterministic high-frequency trading (HFT) infrastructure engineered in C for the **Thru Network** Layer-1 blockchain, executing natively on ThruVM (RISC-V RV64IMC).
+An early-stage, auditable quantitative finance prototype engineered in C for the **Thru Network** Layer-1 blockchain, executing natively on ThruVM (RISC-V RV64IMC). Provides a verifiable market-data oracle, deterministic Q64.64 risk math, and a reference limit-order matching engine.
 
 ---
 
-## 1. Executive Summary
+## 1. Executive Summary & Verification Matrix
 
-`thru-quant-core` provides on-chain market primitives required for institutional trading:
+`thru-quant-core` focuses on verifiable market data and deterministic execution primitives:
 
-1. **Deterministic Q64.64 Fixed-Point Mathematics**: Overflow-free limb division, Newton-Raphson square root, and bit-normalized transcendental functions executing strictly within 64-bit ALU bounds.
-2. **Micro-CLOB Matching Engine**: A monolithic continuous limit orderbook utilizing an intrusive doubly-linked price-time priority ladder, providing deterministic $O(1)$ best-bid-and-offer (BBO) crossing and matching.
-3. **Institutional Market Oracle**: High-density packed quote storage for 32 crypto assets featuring cryptographic fee-payer authority binding and a Volatility Circuit Breaker restricting single-slot anomalies ($\le 500$ bps).
-4. **Zero-Rate-Limit Feeder**: An off-chain streaming pipeline tapping local in-memory IPC buffers to stream high-precision multi-asset quotes on-chain without incurring third-party exchange API rate limits.
+1. **Deterministic Q64.64 Fixed-Point Mathematics**: Defined two's-complement limb operations, Newton-Raphson square root, and polynomial approximations executing strictly within 64-bit ALU bounds without undefined behavior.
+2. **Institutional Market Oracle**: High-density packed quote storage for 32 crypto assets featuring cryptographic fee-payer authority binding, timestamp provenance, and a persistent Volatility Circuit Breaker restricting single-slot anomalies ($\le 500$ bps).
+3. **Reference Micro-CLOB Matching Engine**: A research-grade continuous limit orderbook utilizing an intrusive doubly-linked price-time priority ladder, demonstrating deterministic $O(1)$ best-bid-and-offer (BBO) lookup.
+4. **Streaming Feeder Prototype**: A local quote aggregator ingesting market history and streaming packed Q64.64 payloads on-chain with source-timestamp provenance.
+
+### 6-Tier Verification Status Matrix
+
+All modules are classified according to strict proof requirements:
+
+| Module / Primitive | Status Tier | Public Code | Host Tested (ASan) | Target Built (RV64) | On-Chain Alphanet | Production Settlement |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Q64.64 Math Core** | `Host-tested` / `Target-built` | Yes | Yes | Yes | N/A | N/A |
+| **Market Oracle Program** | `Alphanet-verified` | Yes | Yes | Yes | Yes (Slot 7743340) | Planned |
+| **Circuit Breaker Lifecycle** | `Host-tested` / `Alphanet-verified` | Yes | Yes | Yes | Yes (Tested) | Planned |
+| **Reference CLOB Engine** | `Target-built` / `Alphanet-verified` | Yes | Yes | Yes | Yes (Slot 7743774) | Out-of-Scope (Research) |
+| **Token Escrow & Custody** | `Not Implemented` | No | No | No | No | Out-of-Scope |
+
+> [!NOTE]
+> **Explicit CLOB Scope Boundary:** The CLOB orderbook is implemented strictly as a **Deterministic Reference Matching Engine (Research Prototype)**. It models price-time priority matching in memory, but does not implement balance custody, asset escrow, token transfers, or financial settlement. See [docs/claims.md](docs/claims.md) for full evidence registry.
 
 ---
 
@@ -227,7 +242,7 @@ The test runner builds and executes:
 
 ---
 
-## 9. Zero-Rate-Limit Feeder
+## 9. Local Streaming Feeder Prototype
 
 The streaming feeder reads local market state snapshots and broadcasts packed Q64.64 vectors to Thru Network:
 

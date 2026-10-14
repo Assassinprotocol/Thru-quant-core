@@ -391,16 +391,21 @@
     <header>
         <div class="brand-container">
             <span class="brand-badge">THRU·VM</span>
-            <span class="brand-title">Quant Core Monolithic Engine</span>
-            <span class="network-pill">Alphanet Live</span>
+            <span class="brand-title">Quant Core Reference Engine</span>
+            <span class="network-pill" style="background-color: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3);">STATIC DEMO</span>
         </div>
         <div class="header-stats">
-            <div class="stat-item">Rate Limit: <span class="val text-green">0 reqs (Local IPC)</span></div>
+            <div class="stat-item">Feeder Mode: <span class="val text-amber">File-based Snapshot</span></div>
             <div class="stat-item">VM Arch: <span class="val">RV64IMC (Q64.64)</span></div>
-            <div class="stat-item">Storage: <span class="val">16MB Direct DMA</span></div>
-            <div class="stat-item">Slot: <span class="val" id="slotDisplay">7,495,840</span></div>
+            <div class="stat-item">Storage: <span class="val">Packed Struct Layout</span></div>
+            <div class="stat-item">Simulated Slot: <span class="val" id="slotDisplay">7,495,840</span></div>
         </div>
     </header>
+
+    <div style="background: rgba(245, 158, 11, 0.12); border-bottom: 1px solid rgba(245, 158, 11, 0.25); color: #fbbf24; padding: 8px 28px; font-size: 12px; font-family: var(--font-mono); display: flex; align-items: center; justify-content: space-between;">
+        <span>⚠️ <strong>STATIC DEMO</strong>: Displaying offline sample data. Submits simulated local orders. No live RPC connection.</span>
+        <span style="opacity: 0.75;">Reference Engine Prototype</span>
+    </div>
 
     <div class="main-container">
         <!-- Panel 1: Market Oracle Live Quotes -->
@@ -429,7 +434,7 @@
         <div class="panel">
             <div class="panel-header">
                 <span class="panel-title">ETH/USDT Limit Orderbook (CLOB)</span>
-                <span class="tag-pill tag-rv64">Zero-Copy Ring Buffer</span>
+                <span class="tag-pill tag-rv64">Packed Priority Ladder</span>
             </div>
             <div class="orderbook-container">
                 <!-- Asks (Sells) -->
@@ -459,8 +464,8 @@
         <!-- Panel 3: Order Entry & Real-time Trades -->
         <div class="panel">
             <div class="panel-header">
-                <span class="panel-title">Direct On-Chain Execution</span>
-                <span class="tag-pill" style="background:#222; color:#aaa;">ThruVM ABI</span>
+                <span class="panel-title">Local Order Simulation</span>
+                <span class="tag-pill" style="background:#222; color:#aaa;">Local State</span>
             </div>
             <div class="trade-form">
                 <div class="btn-group">
@@ -475,7 +480,7 @@
                     <label>Quantity (ETH)</label>
                     <input type="number" id="inputQty" value="1.50" step="0.1">
                 </div>
-                <button class="btn-submit" onclick="submitSimulatedOrder()">SUBMIT LIMIT ORDER</button>
+                <button class="btn-submit" onclick="submitSimulatedOrder()">SIMULATE LOCAL ORDER</button>
             </div>
 
             <div class="panel-header" style="border-top: 1px solid var(--border-subtle);">
@@ -583,13 +588,13 @@
             const item = document.createElement("div");
             item.className = "trade-item";
             item.innerHTML = `
-                <span>${currentSide === 'BUY' ? 'BID PLACED' : 'ASK PLACED'} @ $${price.toFixed(2)}</span>
+                <span>[LOCAL SIM] ${currentSide === 'BUY' ? 'BID PLACED' : 'ASK PLACED'} @ $${price.toFixed(2)}</span>
                 <span class="${currentSide === 'BUY' ? 'text-green' : 'text-red'}">${qty.toFixed(2)} ETH</span>
             `;
             log.insertBefore(item, log.firstChild);
         }
 
-        // Live simulation slot tick
+        // Offline simulation mock slot tick
         let slot = 7495840;
         setInterval(() => {
             slot += 1;

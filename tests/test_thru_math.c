@@ -5,24 +5,51 @@
 int main() {
     printf("[TEST] Testing thru_math Q64.64...\n");
 
-    /* 1. Conversions */
+    /* 1. Conversions & Negative Numbers */
     q64_t val = q64_from_int(42);
     assert(q64_to_int(val) == 42);
 
-    /* 2. Ratio (1.5) */
+    q64_t neg_val = q64_from_int(-42);
+    assert(q64_to_int(neg_val) == -42);
+
+    q64_t min_int64 = q64_from_int(INT64_MIN);
+    assert(q64_to_int(min_int64) == INT64_MIN);
+
+    q64_t max_int64 = q64_from_int(INT64_MAX);
+    assert(q64_to_int(max_int64) == INT64_MAX);
+
+    /* 2. Ratio (1.5, -1.5, signs) */
     q64_t one_half = q64_from_ratio(3, 2);
     assert(q64_to_int(one_half) == 1);
+
+    q64_t neg_one_half = q64_from_ratio(-3, 2);
+    assert(q64_to_int(neg_one_half) == -1);
+
+    q64_t neg_one_half2 = q64_from_ratio(3, -2);
+    assert(q64_to_int(neg_one_half2) == -1);
+
+    q64_t pos_one_half2 = q64_from_ratio(-3, -2);
+    assert(q64_to_int(pos_one_half2) == 1);
 
     /* 3. Addition and Subtraction */
     q64_t a = q64_from_int(10);
     q64_t b = q64_from_int(20);
     assert(q64_to_int(q64_add(a, b)) == 30);
     assert(q64_to_int(q64_sub(b, a)) == 10);
+    assert(q64_to_int(q64_add(neg_val, val)) == 0);
 
-    /* 4. Multiplication */
+    /* 4. Multiplication & Negative / Overflow Handling */
     q64_t two = q64_from_int(2);
     q64_t three = q64_mul(one_half, two);
     assert(q64_to_int(three) == 3);
+    assert(q64_to_int(q64_mul(q64_from_int(-5), q64_from_int(4))) == -20);
+    assert(q64_to_int(q64_mul(q64_from_int(-5), q64_from_int(-4))) == 20);
+
+    /* 4b. Overflow Saturation */
+    q64_t huge_a = q64_from_int(1000000000000LL);
+    q64_t huge_b = q64_from_int(1000000000000LL);
+    assert(q64_mul(huge_a, huge_b) == Q64_MAX);
+    assert(q64_mul(-huge_a, huge_b) == Q64_MIN);
 
     /* 5. Division (10 / 4 = 2.5) */
     q64_t ten = q64_from_int(10);

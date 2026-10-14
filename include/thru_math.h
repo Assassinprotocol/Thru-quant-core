@@ -24,11 +24,23 @@ typedef __uint128_t uq64_t;
 
 /* Core lightweight operations */
 static inline q64_t q64_from_int(int64_t x) {
-    return ((q64_t)x) << Q64_SCALE_BITS;
+    if (x >= 0) {
+        return ((q64_t)x) << Q64_SCALE_BITS;
+    } else {
+        uint64_t u_mag = (x == INT64_MIN) ? (1ULL << 63) : (uint64_t)(-x);
+        uq64_t scaled = ((uq64_t)u_mag) << Q64_SCALE_BITS;
+        return (q64_t)((uq64_t)0 - scaled);
+    }
 }
 
 static inline int64_t q64_to_int(q64_t x) {
-    return (int64_t)(x >> Q64_SCALE_BITS);
+    if (x >= 0) {
+        return (int64_t)(x >> Q64_SCALE_BITS);
+    } else {
+        uq64_t ux = (uq64_t)0 - (uq64_t)x;
+        uint64_t int_part = (uint64_t)(ux >> Q64_SCALE_BITS);
+        return (int_part == (1ULL << 63)) ? INT64_MIN : -(int64_t)int_part;
+    }
 }
 
 static inline q64_t q64_abs(q64_t x) {

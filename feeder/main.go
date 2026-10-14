@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"math/big"
 	"os"
 	"os/exec"
@@ -108,7 +109,49 @@ func parseRegimeID(regime string) uint32 {
 	}
 }
 
-func readLocalMarketData(dataPath string) (map[string]float64, uint32, error) {
+type QuoteData struct {
+	Price         float64
+	SourceTime    uint32
+	VolatilityBps uint32
+}
+
+func calculateRollingVolatilityBps(prices []float64) uint32 {
+	if len(prices) < 10 {
+		return 0 // Insufficient sample horizon
+	}
+
+	var logReturns []float64
+	var sum float64
+	for i := 1; i < len(prices); i++ {
+		if prices[i-1] <= 0 || prices[i] <= 0 {
+			continue
+		}
+		r := math.Log(prices[i] / prices[i-1])
+		logReturns = append(logReturns, r)
+		sum += r
+	}
+
+	n := float64(len(logReturns))
+	if n < 9 {
+		return 0
+	}
+	mean := sum / n
+
+	var varianceSum float64
+	for _, r := range logReturns {
+		diff := r - mean
+		varianceSum += diff * diff
+	}
+
+	stdDev := math.Sqrt(varianceSum / (n - 1))
+	bps := stdDev * 10000.0
+	if bps > 10000.0 {
+		bps = 10000.0
+	}
+	return uint32(bps)
+}
+
+func readLocalMarketData(dataPath string) (map[string]QuoteData, uint32, error) {
 	historyPath := filepath.Join(dataPath, "market_history.json")
 	regimePath := filepath.Join(dataPath, "market_regime.json")
 
@@ -122,10 +165,42 @@ func readLocalMarketData(dataPath string) (map[string]float64, uint32, error) {
 		return nil, 0, fmt.Errorf("failed decoding %s: %w", historyPath, err)
 	}
 
-	latestPrices := make(map[string]float64)
+	// Group records by symbol and track maximum timestamp
+	symbolHistory := make(map[string][]float64)
+	latestRecords := make(map[string]MarketRecord)
+
 	for _, rec := range records {
-		if rec.Price > 0 {
-			latestPrices[rec.Symbol] = rec.Price
+		if rec.Price <= 0 {
+			continue
+		}
+		symbolHistory[rec.Symbol] = append(symbolHistory[rec.Symbol], rec.Price)
+		existing, ok := latestRecords[rec.Symbol]
+		if !ok || rec.Timestamp > existing.Timestamp {
+			latestRecords[rec.Symbol] = rec
+		}
+	}
+
+	nowSec := float64(time.Now().Unix())
+	maxStaleAge := 120.0 // Reject quotes older than 120 seconds
+
+	resultQuotes := make(map[string]QuoteData)
+	for sym, rec := range latestRecords {
+		// Freshness check: reject stale records
+		if rec.Timestamp > 0 && (nowSec - rec.Timestamp) > maxStaleAge {
+			log.Printf("[THRU:FEEDER:WARN] Quote %s is stale (age: %.1fs > %.0fs) - skipping", sym, nowSec-rec.Timestamp, maxStaleAge)
+			continue
+		}
+
+		volBps := calculateRollingVolatilityBps(symbolHistory[sym])
+		sourceTs := uint32(rec.Timestamp)
+		if sourceTs == 0 {
+			sourceTs = uint32(nowSec)
+		}
+
+		resultQuotes[sym] = QuoteData{
+			Price:         rec.Price,
+			SourceTime:    sourceTs,
+			VolatilityBps: volBps,
 		}
 	}
 
@@ -138,23 +213,26 @@ func readLocalMarketData(dataPath string) (map[string]float64, uint32, error) {
 		}
 	}
 
-	return latestPrices, regimeID, nil
+	return resultQuotes, regimeID, nil
 }
 
-func buildOracleUpdatePayload(accountIdx uint16, regimeID uint32, prices map[string]float64) ([]byte, []OracleEntry) {
+func buildOracleUpdatePayload(accountIdx uint16, regimeID uint32, quotes map[string]QuoteData) ([]byte, []OracleEntry) {
 	buf := new(bytes.Buffer)
-	now := uint32(time.Now().Unix())
+	maxSourceTime := uint32(0)
 
 	var entries []OracleEntry
 	for sym, symID := range knownSymbols {
-		if p, ok := prices[sym]; ok && p > 0 {
-			hi, lo := floatToQ64(p)
+		if q, ok := quotes[sym]; ok && q.Price > 0 {
+			hi, lo := floatToQ64(q.Price)
+			if q.SourceTime > maxSourceTime {
+				maxSourceTime = q.SourceTime
+			}
 			entries = append(entries, OracleEntry{
 				SymbolID:      symID,
 				PriceQ64Hi:    hi,
 				PriceQ64Lo:    lo,
-				VolatilityBps: 150, // default 1.5%
-				Timestamp:     now,
+				VolatilityBps: q.VolatilityBps,
+				Timestamp:     q.SourceTime,
 			})
 		}
 		if len(entries) >= 32 {
@@ -162,11 +240,15 @@ func buildOracleUpdatePayload(accountIdx uint16, regimeID uint32, prices map[str
 		}
 	}
 
+	if maxSourceTime == 0 {
+		maxSourceTime = uint32(time.Now().Unix())
+	}
+
 	// Header: instruction_type (u32=1), oracle_account_idx (u16), regime_id (u32), timestamp (u32), entry_count (u32)
 	binary.Write(buf, binary.LittleEndian, uint32(1))
 	binary.Write(buf, binary.LittleEndian, accountIdx)
 	binary.Write(buf, binary.LittleEndian, regimeID)
-	binary.Write(buf, binary.LittleEndian, now)
+	binary.Write(buf, binary.LittleEndian, maxSourceTime)
 	binary.Write(buf, binary.LittleEndian, uint32(len(entries)))
 
 	// Body: oracle_entry entries
@@ -195,7 +277,7 @@ func main() {
 	once := flag.Bool("once", false, "Run once and exit")
 	flag.Parse()
 
-	log.Printf("[THRU:FEEDER] Initializing Zero-Rate-Limit Pipeline tapping %s", *dataPath)
+	log.Printf("[THRU:FEEDER] Initializing Market Data Pipeline with Timestamp Provenance: %s", *dataPath)
 	log.Printf("[THRU:FEEDER] Target Program: %s | Oracle Account: %s | Signer: %s", *programPubkey, *oracleAccount, *feePayer)
 
 	for {

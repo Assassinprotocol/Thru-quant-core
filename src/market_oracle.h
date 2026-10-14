@@ -7,6 +7,7 @@
 /* Instruction types */
 #define ORACLE_INSTR_INITIALIZE     (0U)
 #define ORACLE_INSTR_UPDATE_PRICES  (1U)
+#define ORACLE_INSTR_RESUME         (2U)
 
 /* Error codes */
 #define ORACLE_ERR_INVALID_INSTR_SIZE   (0x2001UL)
@@ -16,9 +17,16 @@
 #define ORACLE_ERR_ACCOUNT_INIT_FAILED  (0x2005UL)
 #define ORACLE_ERR_INVALID_COUNT        (0x2006UL)
 #define ORACLE_ERR_CIRCUIT_BREAKER      (0x2007UL)
+#define ORACLE_ERR_ALREADY_INITIALIZED  (0x2008UL)
+#define ORACLE_ERR_STALE_TIMESTAMP      (0x2009UL)
+#define ORACLE_ERR_FUTURE_SKEW          (0x200AUL)
+#define ORACLE_ERR_DUPLICATE_SYMBOL     (0x200BUL)
+#define ORACLE_ERR_INVALID_PRICE        (0x200CUL)
 
 #define MAX_ORACLE_SYMBOLS (32)
 #define MAX_ALLOWED_DEVIATION_BPS (500) /* Max 5% delta per single slot update */
+#define MAX_QUOTE_AGE_SECONDS (120)     /* Max 2 minutes quote age */
+#define MAX_FUTURE_SKEW_SECONDS (30)    /* Max 30 seconds future timestamp skew */
 
 /* Single market asset quote */
 typedef struct __attribute__((packed)) {
@@ -56,5 +64,11 @@ typedef struct __attribute__((packed)) {
     uint32_t timestamp;
     uint32_t entry_count;
 } oracle_update_hdr_t;
+
+/* Arguments for resuming / resetting circuit breaker */
+typedef struct __attribute__((packed)) {
+    uint32_t instruction_type;
+    uint16_t oracle_account_idx;
+} oracle_resume_args_t;
 
 #endif /* MARKET_ORACLE_H */

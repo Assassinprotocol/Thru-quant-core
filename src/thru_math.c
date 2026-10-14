@@ -2,14 +2,20 @@
 
 q64_t q64_from_ratio(int64_t numerator, int64_t denominator) {
     if (denominator == 0) return 0;
-    q64_t num = ((q64_t)numerator) << Q64_SCALE_BITS;
-    return num / (q64_t)denominator;
+    bool neg = (numerator < 0) ^ (denominator < 0);
+    uint64_t u_num = (numerator == INT64_MIN) ? (1ULL << 63) : (uint64_t)(numerator < 0 ? -numerator : numerator);
+    uint64_t u_den = (denominator == INT64_MIN) ? (1ULL << 63) : (uint64_t)(denominator < 0 ? -denominator : denominator);
+
+    uq64_t shifted = ((uq64_t)u_num) << Q64_SCALE_BITS;
+    uq64_t res = shifted / (uq64_t)u_den;
+    return neg ? (q64_t)((uq64_t)0 - res) : (q64_t)res;
 }
 
 q64_t q64_mul(q64_t a, q64_t b) {
+    if (a == 0 || b == 0) return 0;
     bool neg = (a < 0) ^ (b < 0);
-    uq64_t ua = (a < 0) ? (uq64_t)(-a) : (uq64_t)a;
-    uq64_t ub = (b < 0) ? (uq64_t)(-b) : (uq64_t)b;
+    uq64_t ua = (a < 0) ? ((uq64_t)0 - (uq64_t)a) : (uq64_t)a;
+    uq64_t ub = (b < 0) ? ((uq64_t)0 - (uq64_t)b) : (uq64_t)b;
 
     uint64_t a_hi = (uint64_t)(ua >> 64);
     uint64_t a_lo = (uint64_t)ua;
@@ -21,22 +27,36 @@ q64_t q64_mul(q64_t a, q64_t b) {
     uq64_t p2 = (uq64_t)a_hi * b_lo;
     uq64_t p3 = (uq64_t)a_hi * b_hi;
 
-    uq64_t result = (p3 << 64) + p1 + p2 + (p0 >> 64);
-    return neg ? -(q64_t)result : (q64_t)result;
+    /* If product of integer components exceeds 63 bits, it overflows Q64.64 */
+    if (p3 >= ((uq64_t)1 << 63)) {
+        return neg ? Q64_MIN : Q64_MAX;
+    }
+
+    uq64_t mid = p1 + p2 + (p0 >> 64);
+    if (mid < p1) {
+        return neg ? Q64_MIN : Q64_MAX;
+    }
+
+    uq64_t hi_part = (p3 << 64);
+    uq64_t result = hi_part + mid;
+    if (result < hi_part || (result >> 127) > 0) {
+        return neg ? Q64_MIN : Q64_MAX;
+    }
+    return neg ? (q64_t)((uq64_t)0 - result) : (q64_t)result;
 }
 
 q64_t q64_div(q64_t a, q64_t b) {
     if (b == 0) return 0;
     bool neg = (a < 0) ^ (b < 0);
-    uq64_t ua = (a < 0) ? (uq64_t)(-a) : (uq64_t)a;
-    uq64_t ub = (b < 0) ? (uq64_t)(-b) : (uq64_t)b;
+    uq64_t ua = (a < 0) ? ((uq64_t)0 - (uq64_t)a) : (uq64_t)a;
+    uq64_t ub = (b < 0) ? ((uq64_t)0 - (uq64_t)b) : (uq64_t)b;
 
     /* Identity: ua = (q_int * ub) + rem */
     uq64_t q_int = ua / ub;
     uq64_t rem = ua % ub;
 
-    /* Overflow check: integer part exceeds 64 bits */
-    if (q_int >= ((uq64_t)1 << 64)) {
+    /* Overflow check: integer part exceeds signed 63-bit range */
+    if (q_int >= ((uq64_t)1 << 63)) {
         return neg ? Q64_MIN : Q64_MAX;
     }
 
@@ -58,7 +78,7 @@ q64_t q64_div(q64_t a, q64_t b) {
     }
 
     uq64_t result = (q_int << 64) | frac;
-    return neg ? -(q64_t)result : (q64_t)result;
+    return neg ? (q64_t)((uq64_t)0 - result) : (q64_t)result;
 }
 
 q64_t q64_sqrt(q64_t x) {
