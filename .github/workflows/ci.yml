@@ -1,0 +1,22 @@
+name: Quant Core CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    name: Build & Verify Architectural Simulation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc make
+
+      - name: Run Test Suite
+        run: make test

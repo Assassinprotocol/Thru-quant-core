@@ -34,6 +34,25 @@ types:
           - name: version
             field-type:
               primitive: u32
+          - name: authority_pubkey
+            field-type:
+              array:
+                element-type:
+                  primitive: u8
+                size:
+                  literal:
+                    u64: 32
+          - name: circuit_breaker_active
+            field-type:
+              primitive: u8
+          - name: _reserved
+            field-type:
+              array:
+                element-type:
+                  primitive: u8
+                size:
+                  literal:
+                    u64: 3
           - name: regime_id
             field-type:
               primitive: u32
@@ -64,6 +83,14 @@ types:
           - name: oracle_account_idx
             field-type:
               primitive: u16
+          - name: seed
+            field-type:
+              array:
+                element-type:
+                  primitive: u8
+                size:
+                  literal:
+                    u64: 32
 
   - name: oracle_update_hdr
     kind:

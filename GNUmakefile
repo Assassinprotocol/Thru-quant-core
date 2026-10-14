@@ -4,3 +4,11 @@ RISCV_TOOLCHAIN_ROOT:=$(HOME)/.thru/sdk/toolchain
 CPPFLAGS+=-I$(CURDIR)/include -I$(CURDIR)/src
 
 include $(THRU_C_SDK_DIR)/thru_c_program.mk
+
+test:
+	gcc -O2 -Iinclude tests/test_thru_math.c src/thru_math.c -o tests/test_math
+	./tests/test_math
+	gcc -O2 -Iinclude tests/test_simulation.c src/thru_math.c -o tests/test_simulation
+	./tests/test_simulation
+
+

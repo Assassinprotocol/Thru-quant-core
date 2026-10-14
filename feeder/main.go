@@ -108,7 +108,7 @@ func parseRegimeID(regime string) uint32 {
 	}
 }
 
-func readLocalHansenData(dataPath string) (map[string]float64, uint32, error) {
+func readLocalMarketData(dataPath string) (map[string]float64, uint32, error) {
 	historyPath := filepath.Join(dataPath, "market_history.json")
 	regimePath := filepath.Join(dataPath, "market_regime.json")
 
@@ -182,19 +182,24 @@ func buildOracleUpdatePayload(accountIdx uint16, regimeID uint32, prices map[str
 }
 
 func main() {
-	dataPath := flag.String("data-dir", "/home/hansen/AI/hansen_engine/data", "Path to Hansen Engine local data directory")
+	defaultDir := os.Getenv("MARKET_DATA_DIR")
+	if defaultDir == "" {
+		defaultDir = "./data"
+	}
+	dataPath := flag.String("data-dir", defaultDir, "Path to market data directory (or set MARKET_DATA_DIR)")
 	interval := flag.Duration("interval", 10*time.Second, "Update interval")
 	dryRun := flag.Bool("dry-run", false, "Dry run mode (parse and print without submitting to Thru)")
 	programPubkey := flag.String("program", "", "Target Market Oracle program public key")
 	oracleAccount := flag.String("account", "", "Target Oracle storage account address")
+	feePayer := flag.String("fee-payer", "0xhansen", "Fee payer key name from config")
 	once := flag.Bool("once", false, "Run once and exit")
 	flag.Parse()
 
 	log.Printf("[THRU:FEEDER] Initializing Zero-Rate-Limit Pipeline tapping %s", *dataPath)
-	log.Printf("[THRU:FEEDER] Target Program: %s | Oracle Account: %s", *programPubkey, *oracleAccount)
+	log.Printf("[THRU:FEEDER] Target Program: %s | Oracle Account: %s | Signer: %s", *programPubkey, *oracleAccount, *feePayer)
 
 	for {
-		prices, regimeID, err := readLocalHansenData(*dataPath)
+		prices, regimeID, err := readLocalMarketData(*dataPath)
 		if err != nil {
 			log.Printf("[THRU:FEEDER:ERROR] %v", err)
 		} else {
@@ -222,12 +227,17 @@ func main() {
 				log.Printf("[THRU:FEEDER:DRY_RUN] Raw instruction hex: %s", hexPayload[:64]+"...")
 			} else if *programPubkey != "" && *oracleAccount != "" {
 				cmd := exec.Command("thru", "txn", "execute", *programPubkey, hexPayload,
-					"--readwrite-accounts", *oracleAccount, "--fee", "1")
+					"--readwrite-accounts", *oracleAccount,
+					"--fee-payer", *feePayer,
+					"--state-units", "10",
+					"--memory-units", "5000",
+					"--compute-units", "100000",
+					"--fee", "0")
 				out, err := cmd.CombinedOutput()
 				if err != nil {
 					log.Printf("[THRU:FEEDER:TX_FAIL] %v: %s", err, string(out))
 				} else {
-					log.Printf("[THRU:FEEDER:TX_SUCCESS] On-chain update committed: %s", strings.TrimSpace(string(out)))
+					log.Printf("[THRU:FEEDER:TX_SUCCESS] On-chain update committed:\n%s", strings.TrimSpace(string(out)))
 				}
 			} else {
 				log.Printf("[THRU:FEEDER:STANDBY] No on-chain target set; verified payload integrity (%d bytes)", len(payload))

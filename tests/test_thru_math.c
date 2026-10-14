@@ -31,6 +31,19 @@ int main() {
     assert(q64_to_int(two_half) == 2);
     assert(q64_to_int(q64_mul(two_half, two)) == 5);
 
+    /* 5b. Large Value & Crypto Price Division */
+    q64_t btc_price = q64_from_int(65000);
+    q64_t eth_price = q64_from_int(3250);
+    q64_t btc_eth_ratio = q64_div(btc_price, eth_price);
+    assert(q64_to_int(btc_eth_ratio) == 20);
+
+    /* 5c. Fractional Division & Negative Division */
+    q64_t neg_ten = q64_from_int(-10);
+    assert(q64_to_int(q64_div(neg_ten, two)) == -5);
+    assert(q64_to_int(q64_div(ten, -two)) == -5);
+    assert(q64_to_int(q64_div(neg_ten, -two)) == 5);
+    assert(q64_div(ten, 0) == 0);
+
     /* 6. Square Root */
     q64_t nine = q64_from_int(9);
     q64_t sqrt_nine = q64_sqrt(nine);

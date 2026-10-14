@@ -39,6 +39,12 @@ types:
           - name: timestamp
             field-type:
               primitive: u32
+          - name: prev_idx
+            field-type:
+              primitive: i16
+          - name: next_idx
+            field-type:
+              primitive: i16
 
   - name: clob_state
     kind:
@@ -48,9 +54,29 @@ types:
           - name: version
             field-type:
               primitive: u32
+          - name: market_type
+            field-type:
+              primitive: u8
+          - name: _reserved
+            field-type:
+              array:
+                element-type:
+                  primitive: u8
+                size:
+                  literal:
+                    u64: 3
+          - name: min_notional
+            field-type:
+              primitive: u64
           - name: next_order_id
             field-type:
               primitive: u64
+          - name: best_bid_idx
+            field-type:
+              primitive: i16
+          - name: best_ask_idx
+            field-type:
+              primitive: i16
           - name: bid_count
             field-type:
               primitive: u32
@@ -87,6 +113,14 @@ types:
           - name: clob_account_idx
             field-type:
               primitive: u16
+          - name: seed
+            field-type:
+              array:
+                element-type:
+                  primitive: u8
+                size:
+                  literal:
+                    u64: 32
 
   - name: clob_place_order_args
     kind:

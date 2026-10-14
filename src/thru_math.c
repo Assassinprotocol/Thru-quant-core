@@ -31,32 +31,62 @@ q64_t q64_div(q64_t a, q64_t b) {
     uq64_t ua = (a < 0) ? (uq64_t)(-a) : (uq64_t)a;
     uq64_t ub = (b < 0) ? (uq64_t)(-b) : (uq64_t)b;
 
-    uq64_t quotient = (ua << 64) / ub;
-    return neg ? -(q64_t)quotient : (q64_t)quotient;
+    /* Identity: ua = (q_int * ub) + rem */
+    uq64_t q_int = ua / ub;
+    uq64_t rem = ua % ub;
+
+    /* Overflow check: integer part exceeds 64 bits */
+    if (q_int >= ((uq64_t)1 << 64)) {
+        return neg ? Q64_MIN : Q64_MAX;
+    }
+
+    /* Compute fractional part: (rem * 2^64) / ub */
+    uq64_t frac = 0;
+    if (ub < ((uq64_t)1 << 64)) {
+        /* If ub < 2^64, rem * 2^64 cannot overflow 128-bit integer */
+        frac = (rem << 64) / ub;
+    } else {
+        /* Bit-by-bit restoring division for 64 fractional bits */
+        for (int i = 0; i < 64; i++) {
+            rem <<= 1;
+            frac <<= 1;
+            if (rem >= ub) {
+                rem -= ub;
+                frac |= 1;
+            }
+        }
+    }
+
+    uq64_t result = (q_int << 64) | frac;
+    return neg ? -(q64_t)result : (q64_t)result;
 }
 
 q64_t q64_sqrt(q64_t x) {
     if (x <= 0) return 0;
-    uq64_t val = (uq64_t)x;
-    uq64_t res = 0;
-    uq64_t one = (uq64_t)1 << 126;
 
-    while (one > (val << 64)) {
-        one >>= 2;
+    uq64_t ux = (uq64_t)x;
+    int bit_len = 0;
+    uq64_t tmp = ux;
+    while (tmp > 0) {
+        bit_len++;
+        tmp >>= 1;
     }
 
-    uq64_t shifted_val = val << 64;
-    while (one != 0) {
-        if (shifted_val >= res + one) {
-            shifted_val -= res + one;
-            res = (res >> 1) + one;
-        } else {
-            res >>= 1;
+    /* Initial guess: 1 << ((bit_len + 64) / 2) */
+    q64_t y = (q64_t)1 << ((bit_len + 64) / 2);
+
+    /* Newton-Raphson iterations: y_{k+1} = (y_k + x/y_k) / 2 */
+    for (int i = 0; i < 16; i++) {
+        q64_t div = q64_div(x, y);
+        q64_t y_next = (y + div) >> 1;
+        if (y_next == y || y_next == y - 1 || y_next == y + 1) {
+            y = y_next;
+            break;
         }
-        one >>= 2;
+        y = y_next;
     }
 
-    return (q64_t)res;
+    return y;
 }
 
 q64_t q64_exp(q64_t x) {
