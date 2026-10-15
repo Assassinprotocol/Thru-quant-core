@@ -263,6 +263,36 @@ go build -o feeder/feeder feeder/main.go
 
 ---
 
-## 10. License
+## 10. Developer API Daemon & Live Telemetry Console
+
+The Go API service decodes the on-chain `oracle_account_data_t` binary state and exposes high-performance REST and SSE endpoints alongside an institutional-grade dark developer cockpit:
+
+```bash
+# Run unit and integration tests (validates on-chain binary decoding)
+make test-api
+
+# Build standalone API binary
+make build-api
+
+# Run API daemon & web console on port 8080
+make run-api
+```
+
+### 10.1 Endpoints Specification
+
+| Method | Endpoint | Description |
+| :---: | :--- | :--- |
+| `GET` | `/health` | Liveness and data freshness probe (`healthy`, `stale` > 120s, `circuit_breaker_active`). Status 200 or 503. |
+| `GET` | `/v1/status` | Network provenance, target slot, authority pubkey, and memory layout specs. |
+| `GET` | `/v1/oracle/latest` | Decoded snapshot of 28 crypto assets with float prices, Q64 hex, and volatility bps. |
+| `GET` | `/v1/oracle/history` | Rolling 30-sample price buffer per symbol for charting. |
+| `GET` | `/v1/stream` | Server-Sent Events (SSE) push stream with 15s keepalive. |
+
+### 10.2 Live Web Console
+Visit `http://localhost:8080/` to access the live dark telemetry dashboard featuring real-time quote feeds, tick flash indicators, Q64 hex inspector, and an in-memory reference CLOB sandbox.
+
+---
+
+## 11. License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

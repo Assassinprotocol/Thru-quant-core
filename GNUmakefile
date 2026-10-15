@@ -15,4 +15,13 @@ test-simulation:
 	gcc -O2 -fsanitize=address,undefined -Iinclude tests/test_simulation.c src/thru_math.c -o tests/test_simulation
 	./tests/test_simulation
 
-all-tests: test test-simulation
+test-api:
+	go test -v ./...
+
+build-api:
+	go build -o build/thru_oracle_api ./cmd/api
+
+run-api: build-api
+	./build/thru_oracle_api --port 8080 --static-dir ./visualizer
+
+all-tests: test test-simulation test-api
