@@ -16,11 +16,14 @@
             <span class="brand-badge">THRUVM</span>
             <div class="brand-title">
                 <span>QUANT CORE</span>
-                <span class="version">v0.2.0</span>
+                <span class="version">v0.3.0</span>
             </div>
             <div class="header-status-pills">
                 <span class="status-pill stream-disconnected" id="connectionPill">
                     <span class="dot-pulse"></span> CONNECTING...
+                </span>
+                <span class="status-pill ready-ok" id="readyPill">
+                    <span class="dot-pulse"></span> READY: 200
                 </span>
                 <span class="status-pill source-onchain" id="sourcePill">
                     SOURCE: INITIALIZING
@@ -29,6 +32,10 @@
         </div>
 
         <div class="header-meta">
+            <div class="meta-item">
+                <span>Decoder:</span>
+                <span class="val text-cyan tabular" id="metaDecodeLatency">~3.56µs</span>
+            </div>
             <div class="meta-item">
                 <span>Account:</span>
                 <span class="val" id="metaAccountVal">taQbv...3FvwPN</span>
@@ -184,14 +191,39 @@
 
                 <!-- Developer API Inspector -->
                 <section class="json-viewer-container">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 12px; font-weight: 700; letter-spacing: -0.2px;">Live OracleState Inspection</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                        <span style="font-size: 12px; font-weight: 700; letter-spacing: -0.2px;">Operational Telemetry & State</span>
                         <div class="curl-bar">
-                            <button class="curl-btn" onclick="copyEndpoint('/v1/oracle/latest')">cURL /latest</button>
+                            <button class="curl-btn" onclick="copyEndpoint('/ready')">cURL /ready</button>
                             <button class="curl-btn" onclick="copyEndpoint('/health')">cURL /health</button>
+                            <button class="curl-btn" onclick="copyEndpoint('/v1/oracle/latest')">cURL /latest</button>
                             <button class="curl-btn" onclick="copyEndpoint('/v1/status')">cURL /status</button>
                         </div>
                     </div>
+
+                    <div class="operational-grid">
+                        <div class="op-metric">
+                            <span class="op-metric-label">API Requests</span>
+                            <span class="op-metric-val tabular" id="opReqsTotal">0</span>
+                        </div>
+                        <div class="op-metric">
+                            <span class="op-metric-label">Oracle Updates</span>
+                            <span class="op-metric-val tabular text-green" id="opUpdatesTotal">0</span>
+                        </div>
+                        <div class="op-metric">
+                            <span class="op-metric-label">RPC Failures</span>
+                            <span class="op-metric-val tabular text-red" id="opRpcFailures">0</span>
+                        </div>
+                        <div class="op-metric">
+                            <span class="op-metric-label">Stale Discards</span>
+                            <span class="op-metric-val tabular text-amber" id="opStaleDiscards">0</span>
+                        </div>
+                        <div class="op-metric">
+                            <span class="op-metric-label">Breaker Trips</span>
+                            <span class="op-metric-val tabular" id="opBreakerTrips">0</span>
+                        </div>
+                    </div>
+
                     <pre class="json-code" id="rawStateJson">// Awaiting live stream update...</pre>
                 </section>
             </div>
@@ -201,7 +233,7 @@
     <!-- Footer -->
     <footer>
         <div>
-            <span>Thru Quant Core v0.2.0</span> • 
+            <span>Thru Quant Core v0.3.0</span> • 
             <span>Deterministic Oracle & CLOB Reference Architecture</span>
         </div>
         <div>

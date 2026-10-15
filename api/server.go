@@ -5,21 +5,27 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // Server coordinates REST endpoints, SSE streams, and cached oracle state
 type Server struct {
-	mu           sync.RWMutex
-	state        *OracleState
-	history      map[string][]float64
-	subscribers  map[chan []byte]bool
-	subMu        sync.Mutex
-	startTime    time.Time
-	programAddr  string
-	accountAddr  string
-	network      string
-	staticDir    string
+	mu                       sync.RWMutex
+	state                    *OracleState
+	history                  map[string][]float64
+	subscribers              map[chan []byte]bool
+	subMu                    sync.Mutex
+	startTime                time.Time
+	programAddr              string
+	accountAddr              string
+	network                  string
+	staticDir                string
+	requestsTotal            atomic.Uint64
+	rpcFailuresTotal         atomic.Uint64
+	oracleUpdatesTotal       atomic.Uint64
+	staleDiscardsTotal       atomic.Uint64
+	circuitBreakerTripsTotal atomic.Uint64
 }
 
 // NewServer creates a new instance of the API server
@@ -43,6 +49,10 @@ func (s *Server) UpdateState(newState *OracleState) {
 
 	s.mu.Lock()
 	s.state = newState
+	s.oracleUpdatesTotal.Add(1)
+	if newState.CircuitBreakerActive {
+		s.circuitBreakerTripsTotal.Add(1)
+	}
 
 	// Append to rolling price history (max 30 points per asset for charts)
 	for _, entry := range newState.Entries {
@@ -73,6 +83,7 @@ func (s *Server) UpdateState(newState *OracleState) {
 // RegisterRoutes registers all REST and SSE endpoints with the given ServeMux
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/health", s.withCORS(s.handleHealth))
+	mux.HandleFunc("/ready", s.withCORS(s.handleReady))
 	mux.HandleFunc("/v1/status", s.withCORS(s.handleStatus))
 	mux.HandleFunc("/v1/oracle/latest", s.withCORS(s.handleOracleLatest))
 	mux.HandleFunc("/v1/oracle/history", s.withCORS(s.handleOracleHistory))
@@ -84,8 +95,19 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	}
 }
 
+// RecordRPCFailure records a failed RPC transmission
+func (s *Server) RecordRPCFailure() {
+	s.rpcFailuresTotal.Add(1)
+}
+
+// RecordStaleDiscard records a discarded stale quote batch
+func (s *Server) RecordStaleDiscard() {
+	s.staleDiscardsTotal.Add(1)
+}
+
 func (s *Server) withCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		s.requestsTotal.Add(1)
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
@@ -100,8 +122,6 @@ func (s *Server) withCORS(next http.HandlerFunc) http.HandlerFunc {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	feedAge := uint32(0)
 	breaker := false
 	source := "uninitialized"
@@ -118,6 +138,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		slot = s.state.Slot
 		assets = len(s.state.Entries)
 	}
+	s.mu.RUnlock()
 
 	status := "healthy"
 	if s.state == nil {
@@ -140,6 +161,58 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if status == "healthy" {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	feedAge := uint32(0)
+	breaker := false
+	source := "uninitialized"
+	slot := uint64(0)
+	assets := 0
+
+	if s.state != nil {
+		nowSec := uint32(time.Now().Unix())
+		if nowSec > s.state.LastUpdateTS && s.state.LastUpdateTS > 0 {
+			feedAge = nowSec - s.state.LastUpdateTS
+		}
+		breaker = s.state.CircuitBreakerActive
+		source = s.state.SourceMode
+		slot = s.state.Slot
+		assets = len(s.state.Entries)
+	}
+	s.mu.RUnlock()
+
+	ready := true
+	status := "ready"
+	if s.state == nil {
+		ready = false
+		status = "uninitialized"
+	} else if breaker {
+		ready = false
+		status = "circuit_breaker_active"
+	} else if feedAge > 120 {
+		ready = false
+		status = "stale"
+	}
+
+	resp := ReadyResponse{
+		Status:               status,
+		Ready:                ready,
+		FeedAgeSec:           feedAge,
+		CircuitBreakerActive: breaker,
+		Source:               source,
+		Slot:                 slot,
+		TrackedAssets:        assets,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if ready {
 		w.WriteHeader(http.StatusOK)
 	} else {
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -183,6 +256,14 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		QuoteCount:           quoteCount,
 		SourceMode:           source,
 		LastUpdateTS:         lastUpdate,
+		UptimeSec:            int64(time.Since(s.startTime).Seconds()),
+		Metrics: OperationalMetrics{
+			RequestsTotal:            s.requestsTotal.Load(),
+			RPCFailuresTotal:         s.rpcFailuresTotal.Load(),
+			OracleUpdatesTotal:       s.oracleUpdatesTotal.Load(),
+			StaleDiscardsTotal:       s.staleDiscardsTotal.Load(),
+			CircuitBreakerTripsTotal: s.circuitBreakerTripsTotal.Load(),
+		},
 	}
 
 	w.Header().Set("Content-Type", "application/json")

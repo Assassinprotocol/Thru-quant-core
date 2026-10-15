@@ -12,8 +12,10 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -263,6 +265,14 @@ func buildOracleUpdatePayload(accountIdx uint16, regimeID uint32, quotes map[str
 	return buf.Bytes(), entries
 }
 
+func buildOracleResumePayload(accountIdx uint16) []byte {
+	buf := new(bytes.Buffer)
+	// Header: instruction_type (u32 = 2, ORACLE_INSTR_RESUME), oracle_account_idx (u16)
+	binary.Write(buf, binary.LittleEndian, uint32(2))
+	binary.Write(buf, binary.LittleEndian, accountIdx)
+	return buf.Bytes()
+}
+
 func main() {
 	defaultDir := os.Getenv("MARKET_DATA_DIR")
 	if defaultDir == "" {
@@ -271,25 +281,70 @@ func main() {
 	dataPath := flag.String("data-dir", defaultDir, "Path to market data directory (or set MARKET_DATA_DIR)")
 	interval := flag.Duration("interval", 10*time.Second, "Update interval")
 	dryRun := flag.Bool("dry-run", false, "Dry run mode (parse and print without submitting to Thru)")
+	resumeMode := flag.Bool("resume", false, "Submit authorized resume instruction to reset circuit breaker (ORACLE_INSTR_RESUME)")
 	programPubkey := flag.String("program", "", "Target Market Oracle program public key")
 	oracleAccount := flag.String("account", "", "Target Oracle storage account address")
 	feePayer := flag.String("fee-payer", "0xhansen", "Fee payer key name from config")
 	once := flag.Bool("once", false, "Run once and exit")
 	flag.Parse()
 
+	if *resumeMode {
+		log.Printf("[THRU:FEEDER:OPERATOR] Initiating Circuit Breaker Resume Protocol...")
+		log.Printf("[THRU:FEEDER:OPERATOR] Target Program: %s | Account: %s | Authority Signer: %s", *programPubkey, *oracleAccount, *feePayer)
+
+		payload := buildOracleResumePayload(2)
+		hexPayload := hex.EncodeToString(payload)
+		log.Printf("[THRU:FEEDER:OPERATOR] Resume Payload (6B): %s", hexPayload)
+
+		if *dryRun {
+			log.Printf("[THRU:FEEDER:DRY_RUN] Resume instruction ready. Skipping on-chain submission.")
+			return
+		}
+
+		if *programPubkey == "" || *oracleAccount == "" {
+			log.Fatalf("[THRU:FEEDER:ERROR] --program and --account must be specified to execute resume")
+		}
+
+		cmd := exec.Command("thru", "txn", "execute", *programPubkey, hexPayload,
+			"--readwrite-accounts", *oracleAccount,
+			"--fee-payer", *feePayer,
+			"--state-units", "10",
+			"--memory-units", "5000",
+			"--compute-units", "100000",
+			"--fee", "0")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Fatalf("[THRU:FEEDER:RESUME_FAIL] %v: %s", err, string(out))
+		}
+		log.Printf("[THRU:FEEDER:RESUME_SUCCESS] Circuit breaker reset committed on-chain:\n%s", strings.TrimSpace(string(out)))
+		return
+	}
+
 	log.Printf("[THRU:FEEDER] Initializing Market Data Pipeline with Timestamp Provenance: %s", *dataPath)
 	log.Printf("[THRU:FEEDER] Target Program: %s | Oracle Account: %s | Signer: %s", *programPubkey, *oracleAccount, *feePayer)
 
+	// Graceful shutdown on SIGINT/SIGTERM
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		log.Println("[THRU:FEEDER] Shutdown signal received. Exiting gracefully.")
+		os.Exit(0)
+	}()
+
+	sequenceNum := uint64(0)
+
 	for {
+		sequenceNum++
 		prices, regimeID, err := readLocalMarketData(*dataPath)
 		if err != nil {
-			log.Printf("[THRU:FEEDER:ERROR] %v", err)
+			log.Printf("[THRU:FEEDER:ERROR] seq=%d err=%v", sequenceNum, err)
 		} else {
 			payload, entries := buildOracleUpdatePayload(2, regimeID, prices)
 			hexPayload := hex.EncodeToString(payload)
 
-			log.Printf("[THRU:FEEDER] Built update frame: %d quotes | Regime ID: %d | Payload: %d bytes",
-				len(entries), regimeID, len(payload))
+			log.Printf("[THRU:FEEDER:FRAME] seq=%d quotes=%d regime_id=%d payload_bytes=%d",
+				sequenceNum, len(entries), regimeID, len(payload))
 
 			for _, e := range entries {
 				flt := q64ToFloat(e.PriceQ64Hi, e.PriceQ64Lo)

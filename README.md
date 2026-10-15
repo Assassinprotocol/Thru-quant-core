@@ -27,6 +27,7 @@ All modules are classified according to strict proof requirements:
 | **Q64.64 Math Core** | `Host-tested` / `Target-built` | Yes | Yes | Yes | N/A | N/A |
 | **Market Oracle Program** | `Alphanet-verified` | Yes | Yes | Yes | Yes (Slot 7743340) | Planned |
 | **Circuit Breaker Lifecycle** | `Host-tested` / `Alphanet-verified` | Yes | Yes | Yes | Yes (Tested) | Planned |
+| **Binary Memory Decoder (Go)** | `Host-tested` / `Runtime-verified` | Yes | Yes | N/A | Yes (Decodes Slot 7743340) | Planned |
 | **Reference CLOB Engine** | `Target-built` / `Alphanet-verified` | Yes | Yes | Yes | Yes (Slot 7743774) | Out-of-Scope (Research) |
 | **Token Escrow & Custody** | `Not Implemented` | No | No | No | No | Out-of-Scope |
 
@@ -239,6 +240,19 @@ make test
 The test runner builds and executes:
 1. `tests/test_thru_math`: Validates safe limb-division, fixed-point multiplication, Newton-Raphson square roots, and boundary edge cases.
 2. `tests/test_simulation`: Validates price-time priority matching, intrusive doubly-linked list operations, and the 500 bps volatility circuit breaker.
+3. `tests/test_contracts`: Validates 14 real contract entrypoint lifecycle scenarios including anti-state wipe and authorized recovery.
+
+### 8.4 Clean-Clone Reproduction & Empirical Benchmarks
+To run the full end-to-end verification suite across all C harnesses, Go decoders, standalone binaries, and empirical latency benchmarks:
+```bash
+# Execute single-command clean verification
+bash scripts/verify_reproduce.sh
+
+# Run empirical Q64.64 math and Go binary decoding benchmarks
+make bench-math
+make bench-api
+```
+See [docs/benchmarks.md](docs/benchmarks.md) for empirical latency and throughput profiles, and [docs/runbook.md](docs/runbook.md) for operator runbooks.
 
 ---
 
@@ -282,8 +296,9 @@ make run-api
 
 | Method | Endpoint | Description |
 | :---: | :--- | :--- |
-| `GET` | `/health` | Liveness and data freshness probe (`healthy`, `stale` > 120s, `circuit_breaker_active`). Status 200 or 503. |
-| `GET` | `/v1/status` | Network provenance, target slot, authority pubkey, and memory layout specs. |
+| `GET` | `/health` | Liveness probe verifying process health (`healthy`, uptime). Always HTTP 200. |
+| `GET` | `/ready` | Operational readiness probe (`ready`, `feed_age_seconds`). Returns HTTP 200 (healthy) or HTTP 503 (`stale` > 120s, `circuit_breaker_active`, `uninitialized`). |
+| `GET` | `/v1/status` | Network provenance, target slot, authority pubkey, operational diagnostic counters, and memory layout specs. |
 | `GET` | `/v1/oracle/latest` | Decoded snapshot of 28 crypto assets with float prices, Q64 hex, and volatility bps. |
 | `GET` | `/v1/oracle/history` | Rolling 30-sample price buffer per symbol for charting. |
 | `GET` | `/v1/stream` | Server-Sent Events (SSE) push stream with 15s keepalive. |

@@ -116,18 +116,40 @@ type HealthResponse struct {
 	UptimeSec            int64  `json:"uptime_sec"`
 }
 
+// ReadyResponse represents operational readiness for downstream execution
+type ReadyResponse struct {
+	Status               string `json:"status"` // "ready", "stale", "circuit_breaker_active", "uninitialized"
+	Ready                bool   `json:"ready"`
+	FeedAgeSec           uint32 `json:"feed_age_sec"`
+	CircuitBreakerActive bool   `json:"circuit_breaker_active"`
+	Source               string `json:"source"`
+	Slot                 uint64 `json:"slot"`
+	TrackedAssets        int    `json:"tracked_assets"`
+}
+
+// OperationalMetrics represents diagnostic telemetry counters
+type OperationalMetrics struct {
+	RequestsTotal           uint64 `json:"requests_total"`
+	RPCFailuresTotal        uint64 `json:"rpc_failures_total"`
+	OracleUpdatesTotal      uint64 `json:"oracle_updates_total"`
+	StaleDiscardsTotal      uint64 `json:"stale_discards_total"`
+	CircuitBreakerTripsTotal uint64 `json:"circuit_breaker_trips_total"`
+}
+
 // StatusResponse represents network and deployment metadata
 type StatusResponse struct {
-	Network              string `json:"network"`
-	ProgramAddress       string `json:"program_address"`
-	AccountAddress       string `json:"account_address"`
-	Slot                 uint64 `json:"slot"`
-	CircuitBreakerActive bool   `json:"circuit_breaker_active"`
-	Regime               string `json:"regime"`
-	FeedAgeSec           uint32 `json:"feed_age_sec"`
-	QuoteCount           int    `json:"quote_count"`
-	SourceMode           string `json:"source_mode"`
-	LastUpdateTS         uint32 `json:"last_update_ts"`
+	Network              string             `json:"network"`
+	ProgramAddress       string             `json:"program_address"`
+	AccountAddress       string             `json:"account_address"`
+	Slot                 uint64             `json:"slot"`
+	CircuitBreakerActive bool               `json:"circuit_breaker_active"`
+	Regime               string             `json:"regime"`
+	FeedAgeSec           uint32             `json:"feed_age_sec"`
+	QuoteCount           int                `json:"quote_count"`
+	SourceMode           string             `json:"source_mode"`
+	LastUpdateTS         uint32             `json:"last_update_ts"`
+	UptimeSec            int64              `json:"uptime_sec"`
+	Metrics              OperationalMetrics `json:"operational_metrics"`
 }
 
 // Q64ToFloat converts Q64.64 hi/lo words into float64

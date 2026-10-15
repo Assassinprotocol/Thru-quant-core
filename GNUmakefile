@@ -24,4 +24,16 @@ build-api:
 run-api: build-api
 	./build/thru_oracle_api --port 8080 --static-dir ./visualizer
 
+bench-math:
+	gcc -O3 -Iinclude tests/test_math_bench.c src/thru_math.c -o tests/test_bench
+	./tests/test_bench
+	rm -f tests/test_bench
+
+bench-api:
+	go test -bench=. -benchmem ./api
+
 all-tests: test test-simulation test-api
+
+clean-tests:
+	rm -f tests/test_math tests/test_simulation tests/test_contracts tests/test_bench
+

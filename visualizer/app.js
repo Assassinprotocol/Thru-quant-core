@@ -40,8 +40,60 @@ document.addEventListener('DOMContentLoaded', () => {
     initSearchFilter();
     initOrderbook();
     initDeveloperHelpers();
+    initTelemetryLoop();
     connectSSE();
 });
+
+// Telemetry & Readiness Monitor Loop
+function initTelemetryLoop() {
+    checkReadiness();
+    fetchStatusMetrics();
+    setInterval(() => {
+        checkReadiness();
+        fetchStatusMetrics();
+    }, 3500);
+}
+
+async function checkReadiness() {
+    const pill = document.getElementById('readyPill');
+    if (!pill) return;
+    try {
+        const res = await fetch('/ready');
+        const data = await res.json();
+        if (res.ok && data.ready) {
+            pill.className = 'status-pill ready-ok';
+            pill.innerHTML = '<span class="dot-pulse"></span> READY: 200';
+        } else {
+            pill.className = 'status-pill ready-degraded';
+            pill.innerHTML = `<span class="dot-pulse"></span> DEGRADED (${data.status.toUpperCase()})`;
+        }
+    } catch (e) {
+        pill.className = 'status-pill stream-disconnected';
+        pill.innerHTML = '<span class="dot-pulse"></span> READY: OFFLINE';
+    }
+}
+
+async function fetchStatusMetrics() {
+    try {
+        const res = await fetch('/v1/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.operational_metrics) {
+            const m = data.operational_metrics;
+            const setVal = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val.toLocaleString();
+            };
+            setVal('opReqsTotal', m.requests_total || 0);
+            setVal('opUpdatesTotal', m.oracle_updates_total || 0);
+            setVal('opRpcFailures', m.rpc_failures_total || 0);
+            setVal('opStaleDiscards', m.stale_discards_total || 0);
+            setVal('opBreakerTrips', m.circuit_breaker_trips_total || 0);
+        }
+    } catch (e) {
+        // Silent ignore on poll failure
+    }
+}
 
 // SSE Connection Manager with Auto-Reconnect & REST Polling Fallback
 function connectSSE() {

@@ -11,6 +11,7 @@ build/
 tests/test_math
 tests/test_simulation
 tests/test_contracts
+tests/test_bench
 feeder/feeder
 
 # System & editor files

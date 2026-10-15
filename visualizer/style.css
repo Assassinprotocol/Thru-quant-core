@@ -136,6 +136,18 @@ header {
     border-color: rgba(239, 68, 68, 0.3);
 }
 
+.status-pill.ready-ok {
+    background-color: var(--green-bg);
+    color: var(--green);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.status-pill.ready-degraded {
+    background-color: var(--amber-bg);
+    color: var(--amber);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
 .status-pill.source-onchain {
     background-color: var(--accent-cyan-bg);
     color: var(--accent-cyan);
@@ -640,6 +652,37 @@ td.flash-red {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+.operational-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg-surface-elevated);
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.op-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.op-metric-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.op-metric-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
 }
 
 .json-code {
