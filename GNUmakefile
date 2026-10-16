@@ -39,7 +39,7 @@ test-sdk:
 	node --test sdk/test/*.test.ts
 
 run-example:
-	node examples/quant-agent-consumer/agent.ts --dry-run
+	cd examples/quant-agent-consumer && ([ -d node_modules ] || npm install --silent) && node agent.ts --dry-run
 
 all-tests: test test-simulation test-api test-sdk run-example
 
