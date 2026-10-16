@@ -1,0 +1,13 @@
+{
+  "name": "quant-agent-consumer",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Autonomous Quant Risk-Agent and Margin Haircut Consumer for Thru Network",
+  "scripts": {
+    "start": "node agent.ts",
+    "dry-run": "node agent.ts --dry-run"
+  },
+  "dependencies": {
+    "@thru-quant/core-sdk": "file:../../sdk"
+  }
+}

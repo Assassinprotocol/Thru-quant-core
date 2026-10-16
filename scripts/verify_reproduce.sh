@@ -7,11 +7,16 @@ cd "${SCRIPT_DIR}/.."
 command -v gcc >/dev/null 2>&1 || { echo "Error: gcc not found"; exit 1; }
 command -v make >/dev/null 2>&1 || { echo "Error: make not found"; exit 1; }
 command -v go >/dev/null 2>&1 || { echo "Error: go not found"; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "Error: node not found"; exit 1; }
 
 make test
 make test-simulation
 make test-api
 make build-api
 go build -o build/feeder ./feeder/main.go
+make build-sdk
+make test-sdk
+make run-example
 make bench-math
 make bench-api
+

@@ -32,7 +32,16 @@ bench-math:
 bench-api:
 	go test -bench=. -benchmem ./api
 
-all-tests: test test-simulation test-api
+build-sdk:
+	cd sdk && npm run build
+
+test-sdk:
+	node --test sdk/test/*.test.ts
+
+run-example:
+	node examples/quant-agent-consumer/agent.ts --dry-run
+
+all-tests: test test-simulation test-api test-sdk run-example
 
 clean-tests:
 	rm -f tests/test_math tests/test_simulation tests/test_contracts tests/test_bench

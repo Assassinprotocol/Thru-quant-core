@@ -6,7 +6,7 @@
 #include "../src/market_oracle.h"
 #include "../src/clob_engine.h"
 
-static inline q64_t get_price(clob_order_t const *o) {
+static q64_t get_price(clob_order_t const *o) {
     return (((q64_t)o->price_hi) << 64) | ((q64_t)o->price_lo);
 }
 

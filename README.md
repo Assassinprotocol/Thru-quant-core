@@ -5,31 +5,31 @@
 ![Network](https://img.shields.io/badge/Network-Thru%20Alphanet-black?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
-An early-stage, auditable quantitative finance prototype engineered in C for the **Thru Network** Layer-1 blockchain, executing natively on ThruVM (RISC-V RV64IMC). Provides a verifiable market-data oracle, deterministic Q64.64 risk math, and a reference limit-order matching engine.
+A high-performance market-data oracle and deterministic risk engine built in C for the **Thru Network** (RISC-V RV64IMC), paired with a zero-dependency TypeScript SDK and local Go API daemon.
 
 ---
 
-## 1. Executive Summary & Verification Matrix
+## 1. Overview & Verification Status
 
-`thru-quant-core` focuses on verifiable market data and deterministic execution primitives:
+`thru-quant-core` provides verifiable on-chain market data and deterministic execution primitives:
 
-1. **Deterministic Q64.64 Fixed-Point Mathematics**: Defined two's-complement limb operations, Newton-Raphson square root, and polynomial approximations executing strictly within 64-bit ALU bounds without undefined behavior.
-2. **Institutional Market Oracle**: High-density packed quote storage for 32 crypto assets featuring cryptographic fee-payer authority binding, timestamp provenance, and a persistent Volatility Circuit Breaker restricting single-slot anomalies ($\le 500$ bps).
-3. **Reference Micro-CLOB Matching Engine**: A research-grade continuous limit orderbook utilizing an intrusive doubly-linked price-time priority ladder, demonstrating deterministic $O(1)$ best-bid-and-offer (BBO) lookup.
-4. **Streaming Feeder Prototype**: A local quote aggregator ingesting market history and streaming packed Q64.64 payloads on-chain with source-timestamp provenance.
+1. **Deterministic Q64.64 Arithmetic**: 128-bit fixed-point math with Newton-Raphson square roots and checked division running natively on 64-bit ALU registers.
+2. **On-Chain Market Oracle**: Packed 948-byte storage account tracking up to 32 assets with cryptographic authority binding, freshness timestamps, and an on-chain volatility circuit breaker (500 bps limit).
+3. **Deterministic Reference Matching Engine**: Continuous limit orderbook research prototype using an intrusive doubly-linked price-time priority ladder with $O(1)$ BBO access.
+4. **Multi-Runtime Integration**: A local Go feeder/daemon and a zero-dependency TypeScript SDK (`@thru-quant/core-sdk`) with exact arbitrary-precision BigInt math.
 
-### 6-Tier Verification Status Matrix
+### Component Maturity & Verification Status
 
-All modules are classified according to strict proof requirements:
-
-| Module / Primitive | Status Tier | Public Code | Host Tested (ASan) | Target Built (RV64) | On-Chain Alphanet | Production Settlement |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Q64.64 Math Core** | `Host-tested` / `Target-built` | Yes | Yes | Yes | N/A | N/A |
-| **Market Oracle Program** | `Alphanet-verified` | Yes | Yes | Yes | Yes (Slot 7743340) | Planned |
-| **Circuit Breaker Lifecycle** | `Host-tested` / `Alphanet-verified` | Yes | Yes | Yes | Yes (Tested) | Planned |
-| **Binary Memory Decoder (Go)** | `Host-tested` / `Runtime-verified` | Yes | Yes | N/A | Yes (Decodes Slot 7743340) | Planned |
-| **Reference CLOB Engine** | `Target-built` / `Alphanet-verified` | Yes | Yes | Yes | Yes (Slot 7743774) | Out-of-Scope (Research) |
-| **Token Escrow & Custody** | `Not Implemented` | No | No | No | No | Out-of-Scope |
+| Module / Component | Status Tier | Host Tested (ASan) | Target Built (RV64) | On-Chain Alphanet | Production Ready |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Q64.64 Math Core** | `Target-built` | Yes | Yes | N/A | N/A |
+| **Market Oracle Program** | `Alphanet-verified` | Yes | Yes | Yes (Slot 7743340) | Planned |
+| **Circuit Breaker Lifecycle** | `Alphanet-verified` | Yes | Yes | Yes (Slot 7743340) | Planned |
+| **Binary Memory Decoder (Go)** | `Runtime-verified` | Yes | N/A | Yes (Verified) | Planned |
+| **TypeScript SDK (@thru-quant/core-sdk)** | `Production-packaged` | Yes | N/A | Yes (Cross-lang verified) | Planned |
+| **Autonomous Risk Agent** | `Verified-Consumer` | Yes | N/A | Yes (Dry-run verified) | Planned |
+| **Reference CLOB Engine** | `Target-built` | Yes | Yes | Yes (Slot 7743774) | Out-of-Scope (Research) |
+| **Token Escrow & Custody** | `Not Implemented` | No | No | No | Out-of-Scope |
 
 > [!NOTE]
 > **Explicit CLOB Scope Boundary:** The CLOB orderbook is implemented strictly as a **Deterministic Reference Matching Engine (Research Prototype)**. It models price-time priority matching in memory, but does not implement balance custody, asset escrow, token transfers, or financial settlement. See [docs/claims.md](docs/claims.md) for full evidence registry.
@@ -62,7 +62,7 @@ Unlike conventional linear-scan or tree-based orderbooks that suffer from variab
 The Market Oracle maintains an on-chain packed state array (`oracle_account_data_t`, 948 bytes) for up to 32 assets:
 
 - **Cryptographic Authority Binding**: Update instructions require that the transaction fee-payer pubkey strictly matches `authority_pubkey` initialized in the state.
-- **Volatility Collar (Circuit Breaker)**: Evaluates incoming price quotes against existing state quotes. If any single asset exhibits a price deviation exceeding `MAX_ALLOWED_DEVIATION_BPS` (500 bps / 5.0%), the transaction immediately reverts with error `0x2007` (`ORACLE_ERR_CIRCUIT_BREAKER`) and sets `circuit_breaker_active = 1`.
+- **Volatility Collar (Circuit Breaker)**: Evaluates incoming price quotes against existing state quotes. If any single asset exhibits a price deviation exceeding `MAX_ALLOWED_DEVIATION_BPS` (500 bps / 5.0%), the contract sets `circuit_breaker_active = 1` and commits the pause state cleanly via `tsdk_return(TSDK_SUCCESS)`. While active, subsequent price updates are blocked with `ORACLE_ERR_CIRCUIT_BREAKER` (`0x2007`) until an authorized `RESUME` instruction is submitted.
 
 ---
 
@@ -82,104 +82,64 @@ The Market Oracle maintains an on-chain packed state array (`oracle_account_data
 
 All data structures use the `__attribute__((packed))` directive to eliminate compiler padding, guarantee deterministic byte offsets across target architectures, and facilitate zero-copy direct memory access (`tsdk_get_account_data_ptr`).
 
-### 4.1 Market Oracle State (`oracle_account_data_t`)
+### 4.1 Market Oracle State Layout (`oracle_account_data_t`, 948 Bytes)
 
-Total Size: **948 bytes**
+| Offset (B) | Field | Type | Size (B) | Description |
+| :---: | :--- | :--- | :---: | :--- |
+| `0` | `version` | `uint32_t` | 4 | Protocol version (must equal 1) |
+| `4` | `authority_pubkey` | `uint8_t[32]` | 32 | Authorized fee-payer public key |
+| `36` | `circuit_breaker_active` | `uint8_t` | 1 | Circuit breaker state flag (1 = active/halted) |
+| `37` | `_reserved` | `uint8_t[3]` | 3 | Reserved alignment padding |
+| `40` | `regime_id` | `uint32_t` | 4 | Market regime identifier (0 to 3) |
+| `44` | `last_update_ts` | `uint32_t` | 4 | Unix timestamp of most recent update |
+| `48` | `entry_count` | `uint32_t` | 4 | Number of active symbols ($N \le 32$) |
+| `52` | `entries[32]` | `oracle_entry_t[32]` | 896 | Array of 32 quote entries (28 bytes each) |
 
-```
-+-----------------------------------------------------------------------------------------+
-| Offset (B) | Field                   | Type              | Size (B) | Description       |
-+------------+-------------------------+-------------------+----------+-------------------+
-| 0          | version                 | uint32_t          | 4        | Protocol version  |
-| 4          | authority_pubkey        | uint8_t[32]       | 32       | Fee-payer signer  |
-| 36         | circuit_breaker_active  | uint8_t           | 1        | Circuit breaker   |
-| 37         | _reserved               | uint8_t[3]        | 3        | Alignment pad     |
-| 40         | regime_id               | uint32_t          | 4        | Macro regime ID   |
-| 44         | last_update_ts          | uint32_t          | 4        | Unix timestamp    |
-| 48         | entry_count             | uint32_t          | 4        | Active symbols    |
-| 52         | entries[32]             | oracle_entry_t[32]| 896      | 28 bytes / quote  |
-+-----------------------------------------------------------------------------------------+
-```
+### 4.2 CLOB Orderbook State Layout (`clob_state_t`, 37,924 Bytes)
 
-### 4.2 CLOB Orderbook State (`clob_state_t`)
-
-Total Size: **37,924 bytes**
-
-```
-+-----------------------------------------------------------------------------------------+
-| Offset (B) | Field                   | Type              | Size (B) | Description       |
-+------------+-------------------------+-------------------+----------+-------------------+
-| 0          | version                 | uint32_t          | 4        | Protocol version  |
-| 4          | market_type             | uint8_t           | 1        | Book enum         |
-| 5          | _reserved               | uint8_t[3]        | 3        | Alignment pad     |
-| 8          | min_notional            | uint64_t          | 8        | Anti-DoS gate     |
-| 16         | next_order_id           | uint64_t          | 8        | Monotonic counter |
-| 24         | best_bid_idx            | int16_t           | 2        | BBO Bid pointer   |
-| 26         | best_ask_idx            | int16_t           | 2        | BBO Ask pointer   |
-| 28         | bid_count               | uint32_t          | 4        | Active bid count  |
-| 32         | ask_count               | uint32_t          | 4        | Active ask count  |
-| 36         | bids[256]               | clob_order_t[256] | 18,944   | 74 bytes / order  |
-| 18,980     | asks[256]               | clob_order_t[256] | 18,944   | 74 bytes / order  |
-+-----------------------------------------------------------------------------------------+
-```
+| Offset (B) | Field | Type | Size (B) | Description |
+| :---: | :--- | :--- | :---: | :--- |
+| `0` | `version` | `uint32_t` | 4 | Protocol version |
+| `4` | `market_type` | `uint8_t` | 1 | Market type identifier |
+| `5` | `_reserved` | `uint8_t[3]` | 3 | Alignment padding |
+| `8` | `min_notional` | `uint64_t` | 8 | Anti-DoS minimum notional threshold |
+| `16` | `next_order_id` | `uint64_t` | 8 | Monotonic order counter |
+| `24` | `best_bid_idx` | `int16_t` | 2 | Head pointer for sorted bids (-1 = empty) |
+| `26` | `best_ask_idx` | `int16_t` | 2 | Head pointer for sorted asks (-1 = empty) |
+| `28` | `bid_count` | `uint32_t` | 4 | Active resting bid count |
+| `32` | `ask_count` | `uint32_t` | 4 | Active resting ask count |
+| `36` | `bids[256]` | `clob_order_t[256]` | 18,944 | Array of 256 bid slots (74 bytes each) |
+| `18,980` | `asks[256]` | `clob_order_t[256]` | 18,944 | Array of 256 ask slots (74 bytes each) |
 
 ---
 
 ## 5. Architectural Topology
 
-### 5.1 Host-to-L1 Data Pipeline
+### 5.1 End-to-End Data Pipeline
 
 ```mermaid
 flowchart LR
-    subgraph HostEnvironment ["Host Environment"]
-        DataStorage[("Market Snapshot Store\nmarket_history.json\nmarket_regime.json")]
-        GoFeeder["Zero-Rate-Limit Feeder (Go)\n- Q64.64 Binary Encoder\n- Sub-second Ingestion"]
-        DataStorage -->|Read Snapshot| GoFeeder
-    end
-
-    subgraph Gateway ["Network Gateway"]
-        ThruRPC["Thru RPC Node\n(Gasless / Zero-Fee)"]
-        GoFeeder -->|Signed Execution Payload| ThruRPC
-    end
-
-    subgraph OnChainRuntime ["ThruVM Runtime (RISC-V L1)"]
-        OracleContract["Market Oracle Contract\ntaWLmu...\n- Volatility Collar Check (500 bps)\n- Authority Signature Match"]
-        CLOBContract["Micro-CLOB Matching Engine\nta-0Hv...\n- O(1) Doubly-Linked Priority Ladder\n- Price-Time Matching"]
-        
-        OraclePDA[("Oracle Ephemeral Storage\ntaQbv...\n(948 Bytes)")]
-        CLOBPDA[("CLOB Ephemeral Storage\ntalxEr...\n(37,924 Bytes)")]
-
-        ThruRPC -->|Syscall Execute| OracleContract
-        ThruRPC -->|Limit / Cancel Orders| CLOBContract
-        OracleContract -->|Zero-Copy Mutate| OraclePDA
-        CLOBContract -->|Intrusive Pointer Match| CLOBPDA
-    end
+    Source[Market Data Ingestion] --> Feeder[Go Feeder Service]
+    Feeder -->|Signed Update Tx| RPC[Thru RPC Gateway]
+    RPC -->|Syscall Entrypoint| Oracle[Market Oracle Contract]
+    Oracle --> Storage[(Storage Account 948B)]
+    Storage --> Daemon[Go API Daemon]
+    Storage --> SDK[TypeScript SDK]
+    Daemon --> Console[Web Telemetry Console]
+    SDK --> Consumers[DeFi dApps & Quant Agents]
 ```
 
-### 5.2 Micro-CLOB Doubly-Linked Priority Ladder
+### 5.2 Reference CLOB Priority Matching Ladder
 
 ```mermaid
-flowchart TD
-    subgraph StateHeader ["Book Header Pointers"]
-        BBO_BID["best_bid_idx: Index of Highest Price Bid"]
-        BBO_ASK["best_ask_idx: Index of Lowest Price Ask"]
+flowchart LR
+    subgraph Bids [Sorted Bids]
+        B0["Slot 0: $2,500 (Qty 6)"] --> B1["Slot 2: $2,495 (Qty 15)"]
     end
-
-    subgraph SortedBids ["Sorted Bids Ladder (Descending Order)"]
-        B1["Slot 0: $2,500 | Qty: 6\nprev: -1 | next: 2"]
-        B2["Slot 2: $2,495 | Qty: 15\nprev: 0 | next: -1"]
-        B1 <-->|Doubly Linked| B2
+    subgraph Asks [Sorted Asks]
+        A0["Slot 1: $2,502 (Qty 8)"] --> A1["Slot 3: $2,510 (Qty 20)"]
     end
-
-    subgraph SortedAsks ["Sorted Asks Ladder (Ascending Order)"]
-        A1["Slot 1: $2,502 | Qty: 8\nprev: -1 | next: 3"]
-        A2["Slot 3: $2,510 | Qty: 20\nprev: 1 | next: -1"]
-        A1 <-->|Doubly Linked| A2
-    end
-
-    BBO_BID -->|O(1) Head Access| B1
-    BBO_ASK -->|O(1) Head Access| A1
-    CrossingOrder["Incoming Crossing Order (e.g. ASK $2,500)"] -->|Instant Match O(1)| B1
+    Order[Incoming Order] -->|Match against BBO| B0
 ```
 
 ---
@@ -213,7 +173,7 @@ Developing and invoking native C programs on ThruVM requires strict compliance w
    - `tsys_set_account_data_writable(acc_idx)` **must be called prior to** `tsys_account_resize(acc_idx, sz)`.
    - Invoking resize on an account whose data segment has not been designated writable causes the VM syscall to abort with error `-10` (`Account not writable`).
 
-3. **Dynamic PDA Derivation**:
+3. **Ephemeral Storage Account Creation**:
    - Programs can generate deterministic ephemeral storage accounts dynamically via `tsys_account_create_ephemeral(acc_idx, seed)` without requiring pre-computed Merkle inclusion state proofs from the client.
 
 ---
@@ -279,7 +239,7 @@ go build -o feeder/feeder feeder/main.go
 
 ## 10. Developer API Daemon & Live Telemetry Console
 
-The Go API service decodes the on-chain `oracle_account_data_t` binary state and exposes high-performance REST and SSE endpoints alongside an institutional-grade dark developer cockpit:
+The Go API service decodes the on-chain `oracle_account_data_t` binary state and exposes REST and SSE endpoints alongside a local web telemetry console:
 
 ```bash
 # Run unit and integration tests (validates on-chain binary decoding)
@@ -308,6 +268,51 @@ Visit `http://localhost:8080/` to access the live dark telemetry dashboard featu
 
 ---
 
-## 11. License
+## 11. TypeScript SDK & Developer Adoption Pack (`@thru-quant/core-sdk`)
+
+The zero-dependency TypeScript SDK enables dApps, lending protocols, and autonomous AI agents to consume on-chain Oracle state and evaluate deterministic risk policies in under 5 minutes:
+
+```bash
+# Build SDK and standalone bundle
+make build-sdk
+
+# Run cross-language and SDK tests
+make test-sdk
+
+# Run autonomous quant risk-agent simulation
+make run-example
+```
+
+### 11.1 4-Line TypeScript Integration
+```typescript
+import { OracleClient, evaluateRiskGate } from "@thru-quant/core-sdk";
+
+const client = new OracleClient({ daemonUrl: "http://localhost:8082" });
+const state = await client.getLatestState();
+const btc = state.bySymbol["BTCUSDT"]; // O(1) constant-time lookup
+console.log(`BTC: $${btc.priceDecimal} | Vol: ${btc.volatilityBps} bps`);
+```
+
+### 11.2 Operator CLI Diagnostic Tool
+```bash
+# Display summary table of all 28 assets and breaker state
+./sdk/bin/cli.js status
+
+# Deep quote inspection
+./sdk/bin/cli.js quote BTCUSDT
+```
+
+### 11.3 Specifications & Release Evidence
+- [docs/specification.md](docs/specification.md): Formal RFC-style Wire Specification & Memory Map
+- [docs/quickstart.md](docs/quickstart.md): 5-Minute Developer Quickstart Guide
+- [docs/runbook.md](docs/runbook.md): Operator Incident Runbook & Playbooks
+- [docs/releases/v0.4.0.md](docs/releases/v0.4.0.md): Release Evidence Pack v0.4.0 (Productization & Developer Adoption Pack)
+- [docs/releases/v0.3.0.md](docs/releases/v0.3.0.md): Release Evidence Pack v0.3.0 (Operational Hardening)
+- [docs/releases/v0.2.0.md](docs/releases/v0.2.0.md): Release Evidence Pack v0.2.0 (Verifiable Data Path)
+
+---
+
+## 12. License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+

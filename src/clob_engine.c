@@ -2,7 +2,7 @@
 #include <thru-sdk/c/tn_sdk_syscall.h>
 #include "clob_engine.h"
 
-static inline q64_t get_order_price(clob_order_t const *o) {
+static q64_t get_order_price(clob_order_t const *o) {
     return (((q64_t)o->price_hi) << 64) | ((q64_t)o->price_lo);
 }
 

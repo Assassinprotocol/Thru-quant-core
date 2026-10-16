@@ -47,21 +47,11 @@ static inline q64_t q64_abs(q64_t x) {
     return (x < 0) ? -x : x;
 }
 
-static inline q64_t q64_add(q64_t a, q64_t b) {
-    return a + b;
-}
-
-static inline q64_t q64_sub(q64_t a, q64_t b) {
-    return a - b;
-}
-
-static inline q64_t q64_min(q64_t a, q64_t b) {
-    return (a < b) ? a : b;
-}
-
-static inline q64_t q64_max(q64_t a, q64_t b) {
-    return (a > b) ? a : b;
-}
+/* Arithmetic helpers (q64_t natively supports standard operators) */
+#define q64_add(a, b) ((a) + (b))
+#define q64_sub(a, b) ((a) - (b))
+#define q64_min(a, b) (((a) < (b)) ? (a) : (b))
+#define q64_max(a, b) (((a) > (b)) ? (a) : (b))
 
 /* Functions implemented in thru_math.c */
 q64_t q64_from_ratio(int64_t num, int64_t den);

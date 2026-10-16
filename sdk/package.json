@@ -1,0 +1,41 @@
+{
+  "name": "@thru-quant/core-sdk",
+  "version": "0.4.0",
+  "type": "module",
+  "description": "Deterministic market-data decoder, Q64.64 math, and risk engine client for Thru Network",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "thru-oracle": "./bin/cli.js"
+  },
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "test": "node --test test/*.test.ts",
+    "test:fixtures": "node --test test/fixtures.test.ts"
+  },
+  "keywords": [
+    "thru",
+    "oracle",
+    "quant",
+    "risk-engine",
+    "q64-math",
+    "market-data",
+    "defi"
+  ],
+  "author": "Hansen Quant Architect",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^5.4.5"
+  }
+}

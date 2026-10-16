@@ -1,0 +1,296 @@
+{
+  "version": 1,
+  "authority_pubkey": "2162fc8aba3526df2c3428561a0ba90b9b73a9ec337e37d2ce9da97a0096626d",
+  "circuit_breaker_active": false,
+  "regime_id": 0,
+  "regime_name": "NEUTRAL_SIDEWAYS",
+  "last_update_ts": 1791968301,
+  "feed_age_sec": 0,
+  "entry_count": 28,
+  "entries": [
+    {
+      "symbol_id": 28,
+      "symbol": "KASUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 707617102667498368,
+      "price": 0.03836,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 4,
+      "symbol": "APTUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 15189049070292445184,
+      "price": 0.8234,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 5,
+      "symbol": "SUIUSDT",
+      "price_q64_hi": 1,
+      "price_q64_lo": 983211459128717312,
+      "price": 1.0533,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 23,
+      "symbol": "WIFUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 3807407976813651456,
+      "price": 0.2064,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 1,
+      "symbol": "BTCUSDT",
+      "price_q64_hi": 83459,
+      "price_q64_lo": 9223372036854775808,
+      "price": 83459.5,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 2,
+      "symbol": "ETHUSDT",
+      "price_q64_hi": 2506,
+      "price_q64_lo": 8485502273907064832,
+      "price": 2506.46,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 6,
+      "symbol": "BNBUSDT",
+      "price_q64_hi": 742,
+      "price_q64_lo": 10330176681276342272,
+      "price": 742.56,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 9,
+      "symbol": "AVAXUSDT",
+      "price_q64_hi": 10,
+      "price_q64_lo": 3523328118078537728,
+      "price": 10.191,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 12,
+      "symbol": "ARBUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 3474075311401719808,
+      "price": 0.18833,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 13,
+      "symbol": "OPUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 2798740010863213056,
+      "price": 0.15172,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 15,
+      "symbol": "INJUSDT",
+      "price_q64_hi": 8,
+      "price_q64_lo": 1992248359960641536,
+      "price": 8.108,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 3,
+      "symbol": "SOLUSDT",
+      "price_q64_hi": 107,
+      "price_q64_lo": 2029141848108040192,
+      "price": 107.11,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 16,
+      "symbol": "SEIUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 1206785997302078976,
+      "price": 0.06542,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 18,
+      "symbol": "UNIUSDT",
+      "price_q64_hi": 7,
+      "price_q64_lo": 6622381122461728768,
+      "price": 7.359,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 8,
+      "symbol": "XRPUSDT",
+      "price_q64_hi": 1,
+      "price_q64_lo": 6858499446605209600,
+      "price": 1.3718,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 10,
+      "symbol": "LINKUSDT",
+      "price_q64_hi": 12,
+      "price_q64_lo": 17450619893729230848,
+      "price": 12.946,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 20,
+      "symbol": "TAOUSDT",
+      "price_q64_hi": 280,
+      "price_q64_lo": 10330176681277390848,
+      "price": 280.56,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 25,
+      "symbol": "RENDERUSDT",
+      "price_q64_hi": 1,
+      "price_q64_lo": 18372957097414713344,
+      "price": 1.996,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 26,
+      "symbol": "FETUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 4014011510439198208,
+      "price": 0.2176,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 30,
+      "symbol": "FILUSDT",
+      "price_q64_hi": 1,
+      "price_q64_lo": 2945945028571414528,
+      "price": 1.1597,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 32,
+      "symbol": "BCHUSDT",
+      "price_q64_hi": 278,
+      "price_q64_lo": 10145709240540463104,
+      "price": 278.55,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 17,
+      "symbol": "SUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 1054231423812500864,
+      "price": 0.05715,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 29,
+      "symbol": "STXUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 8164528927023847424,
+      "price": 0.4426,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 31,
+      "symbol": "LTCUSDT",
+      "price_q64_hi": 61,
+      "price_q64_lo": 13835058055282163712,
+      "price": 61.75,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 7,
+      "symbol": "DOGEUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 1559672211432142592,
+      "price": 0.08455,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 14,
+      "symbol": "TIAUSDT",
+      "price_q64_hi": 0,
+      "price_q64_lo": 10193670775131897856,
+      "price": 0.5526,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 19,
+      "symbol": "AAVEUSDT",
+      "price_q64_hi": 159,
+      "price_q64_lo": 15679732462653014016,
+      "price": 159.85,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    },
+    {
+      "symbol_id": 11,
+      "symbol": "NEARUSDT",
+      "price_q64_hi": 5,
+      "price_q64_lo": 682529530727251968,
+      "price": 5.037,
+      "volatility_bps": 150,
+      "timestamp": 1791968301,
+      "age_sec": 0
+    }
+  ],
+  "source_mode": "ON_CHAIN_DECODED",
+  "slot": 0,
+  "block_timestamp": "",
+  "account_address": ""
+}

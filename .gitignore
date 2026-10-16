@@ -18,3 +18,9 @@ feeder/feeder
 .DS_Store
 *.swp
 *~
+
+# Node & SDK dependencies
+node_modules/
+package-lock.json
+*.map
+
