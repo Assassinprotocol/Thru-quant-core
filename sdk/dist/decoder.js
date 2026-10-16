@@ -88,10 +88,11 @@ export function decodeOracleAccount(bytes, nowSec) {
  */
 export function decodeOracleBase64(b64Str, nowSec) {
     const cleanB64 = b64Str.trim().replace(/-/g, "+").replace(/_/g, "/");
-    const binaryString = typeof Buffer !== "undefined"
-        ? Buffer.from(cleanB64, "base64")
+    const maybeBuffer = globalThis.Buffer;
+    const bytes = typeof maybeBuffer !== "undefined"
+        ? maybeBuffer.from(cleanB64, "base64")
         : Uint8Array.from(atob(cleanB64), (c) => c.charCodeAt(0));
-    return decodeOracleAccount(new Uint8Array(binaryString), nowSec);
+    return decodeOracleAccount(new Uint8Array(bytes), nowSec);
 }
 /**
  * Decodes a hex-encoded on-chain account data string into OracleState.

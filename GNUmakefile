@@ -33,7 +33,7 @@ bench-api:
 	go test -bench=. -benchmem ./api
 
 build-sdk:
-	cd sdk && npm run build
+	cd sdk && ([ -d node_modules ] || npm install --silent) && npm run build
 
 test-sdk:
 	node --test sdk/test/*.test.ts
