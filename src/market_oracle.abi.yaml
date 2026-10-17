@@ -2,7 +2,7 @@ abi:
   package: market_oracle
   abi-version: 1
   package-version: 1
-  description: "High-Frequency Institutional Quant Oracle for Thru Network"
+  description: "Market Oracle for Thru Network"
 
 types:
   - name: oracle_entry

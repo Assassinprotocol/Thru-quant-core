@@ -1,8 +1,8 @@
 # Thru Quant Core — Formal Protocol & Wire Specification
 **Document Standard:** RFC-Style Technical Wire Specification  
-**Version:** 1.0.0 (Phase 6 Productization)  
+**Version:** 1.1.0 (Phase 7 Hardening)  
 **Target Architecture:** Thru Network (RISC-V RV64IMC On-Chain Runtime & TypeScript/Go Multi-Runtime)  
-**Security Status:** Audited & Canonical Wire Verified  
+**Security Status:** Unaudited (self-reviewed; no third-party audit, see `docs/claims.md` tier 6)  
 
 ---
 
@@ -84,6 +84,11 @@ Authorizes resetting a tripped circuit breaker back to `NORMAL` state (`circuit_
 | `0x00` - `0x03` | 4 | `instruction_type` | `0x00000002` (`uint32_t`) |
 | `0x04` - `0x05` | 2 | `oracle_account_idx` | `uint16_t` |
 
+### 3.4 Instruction 3: Rebase (`ORACLE_INSTR_REBASE`)
+Authority-only recovery for a **genuine re-pricing**. Valid only while `circuit_breaker_active = 1` (otherwise `0x2011`). The payload layout is identical to Instruction 1 (§3.2) with `instruction_type = 0x00000003`. All structural, clock, timestamp, symbol and price validations of §5 apply; only the deviation check is skipped. On success the entries are written as the new baseline, `last_update_ts`/`regime_id` are updated and `circuit_breaker_active` is cleared in the same transaction.
+
+Use `RESUME` (Instruction 2) only when the stored baseline is still correct (e.g. a rejected fat-finger). If the market has genuinely moved by more than the breaker limit, `RESUME` alone re-trips on the next update because the stored baseline is unchanged; use `REBASE`.
+
 ---
 
 ## 4. Numeric Invariants & Arithmetic Specification
@@ -107,11 +112,19 @@ $$r_t = \ln\left(\frac{P_t}{P_{t-1}}\right), \quad \sigma = \sqrt{\frac{1}{N-1}\
 ## 5. Timing, Staleness & Replay Rules
 
 1. **Maximum Quote Age (`MAX_QUOTE_AGE_SECONDS = 120`):**
-   - Quotes older than 120 seconds relative to the current evaluation timestamp MUST be treated as stale and rejected by liquidation or margin engines.
+   - The program rejects an update whose header timestamp is more than 120 s behind block time (`0x2009`) and any entry more than 120 s behind the header timestamp (`0x200E`).
+   - Consumers MUST additionally apply the 120 s rule to every quote at read time; stored quotes age while the oracle is idle or tripped.
 2. **Maximum Future Clock Skew (`MAX_FUTURE_SKEW_SECONDS = 30`):**
-   - Ingestion timestamps more than 30 seconds ahead of the validator's local clock trigger error `0x200A` (`FUTURE_SKEW`).
-3. **Monotonic Sequence Enforcement:**
+   - A header timestamp more than 30 seconds ahead of block time triggers error `0x200A` (`FUTURE_SKEW`).
+3. **Clock availability (fail-closed):**
+   - If the block clock is unavailable (null block context or `block_time == 0`) the update is rejected with `0x200D`. Time checks are never skipped.
+4. **Timestamp consistency:**
+   - Header `timestamp` MUST be `>= last_update_ts` (`0x2009`) and MUST equal the maximum entry timestamp (`0x200E`).
+   - Each entry `timestamp` MUST be `<= header timestamp` and `>=` the stored timestamp of the same `symbol_id` (`0x200E`). Feeders MUST drop a quote rather than fabricate or regress its timestamp.
+5. **Monotonic Sequence Enforcement (clients):**
    - Client applications MUST reject any update where `last_update_ts < previous_last_update_ts` to prevent stale RPC cache replay anomalies.
+6. **Atomicity:**
+   - All validations run before any write; a rejected update leaves account state byte-identical. Updates that would exceed 32 symbols are rejected (`0x200F`), never silently truncated.
 
 ---
 
@@ -124,29 +137,37 @@ stateDiagram-v2
     NORMAL --> NORMAL: Instruction 1 (Valid Update, Delta <= 500 bps)
     NORMAL --> TRIPPED: Invariant Breach (Delta > 500 bps per slot)
     TRIPPED --> TRIPPED: Instruction 1 Blocked (Error 0x2007)
-    TRIPPED --> NORMAL: Instruction 2 (Authorized Resume)
+    TRIPPED --> NORMAL: Instruction 2 (Authorized Resume, baseline unchanged)
+    TRIPPED --> NORMAL: Instruction 3 (Authorized Rebase to the new price level)
 ```
 
 ### Trigger Invariants:
-- A single-slot price deviation exceeding **500 Basis Points (5.00%)** immediately sets `circuit_breaker_active = 1`.
-- While tripped, all subsequent price updates are blocked with error `0x2007`.
+- A price deviation exceeding **500 Basis Points (5.00%)** versus the last accepted quote of the same symbol (compared exactly, no integer flooring) sets `circuit_breaker_active = 1`. The offending batch is **not** applied.
+- While tripped, all subsequent price updates are blocked with error `0x2007`. Recovery is `RESUME` (baseline unchanged) or `REBASE` (new baseline), see §3.3-§3.4.
 - Downstream protocols MUST immediately freeze automated margin liquidations while the circuit breaker is active.
 
 ---
 
-## 7. Error Register (0x2001 - 0x200C)
+## 7. Error Register (0x2001 - 0x2013)
 
 | Error Code (Hex) | Decimal | Symbolic Identifier | Cause | Client Recovery Action |
 | :--- | :--- | :--- | :--- | :--- |
 | `0x2001` | 8193 | `ORACLE_ERR_INVALID_INSTR_SIZE` | Payload length does not match expected struct size. | Check payload buffer length before submission. |
-| `0x2002` | 8194 | `ORACLE_ERR_INVALID_INSTR_TYPE` | Unknown `instruction_type` ($> 2$). | Ensure instruction type is 0, 1, or 2. |
+| `0x2002` | 8194 | `ORACLE_ERR_INVALID_INSTR_TYPE` | Unknown `instruction_type` ($> 3$). | Ensure instruction type is 0, 1, 2, or 3. |
 | `0x2003` | 8195 | `ORACLE_ERR_UNAUTHORIZED` | Transaction signer does not match `authority_pubkey`. | Sign transaction with authorized oracle authority key. |
 | `0x2004` | 8196 | `ORACLE_ERR_DATA_ACCESS_FAILED` | ThruVM storage account pointer returned NULL. | Verify account index and program permissions. |
 | `0x2005` | 8197 | `ORACLE_ERR_ACCOUNT_INIT_FAILED` | Account initialization write failed. | Ensure account is owned by Oracle program. |
 | `0x2006` | 8198 | `ORACLE_ERR_INVALID_COUNT` | `entry_count` exceeds 32 or equals 0. | Clamp symbol updates to $1 \le N \le 32$. |
 | `0x2007` | 8199 | `ORACLE_ERR_CIRCUIT_BREAKER` | Price update attempted while breaker is active. | Submit authorized `RESUME` instruction (type 2). |
 | `0x2008` | 8200 | `ORACLE_ERR_ALREADY_INITIALIZED` | Initialize called on an already active account. | Do not re-initialize existing accounts. |
-| `0x2009` | 8201 | `ORACLE_ERR_STALE_TIMESTAMP` | Quote timestamp is older than previous update. | Ensure ingestion timestamps strictly advance. |
+| `0x2009` | 8201 | `ORACLE_ERR_STALE_TIMESTAMP` | Header timestamp is older than the previous update, or more than 120 s behind block time. | Ensure ingestion timestamps advance and the feeder clock is synchronized. |
 | `0x200A` | 8202 | `ORACLE_ERR_FUTURE_SKEW` | Quote timestamp exceeds local clock by $> 30$s. | Synchronize system clock with NTP before feeding. |
 | `0x200B` | 8203 | `ORACLE_ERR_DUPLICATE_SYMBOL` | Multiple quotes with the same `symbol_id`. | Deduplicate symbols in the update array. |
-| `0x200C` | 8204 | `ORACLE_ERR_INVALID_PRICE` | Quote price is zero (`hi = 0` and `lo = 0`). | Validate market feed price $> 0$ before packing. |
+| `0x200C` | 8204 | `ORACLE_ERR_INVALID_PRICE` | Quote price is zero (`hi = 0` and `lo = 0`) or `price_q64_hi >= 2^63`. | Validate market feed price $> 0$ before packing. |
+| `0x200D` | 8205 | `ORACLE_ERR_CLOCK_UNAVAILABLE` | Block clock unavailable (null context or `block_time == 0`). | Retry later; the update is rejected fail-closed. |
+| `0x200E` | 8206 | `ORACLE_ERR_ENTRY_TIMESTAMP` | Entry timestamp ahead of header, >120 s behind it, older than the stored quote of that symbol, or header != max(entry timestamps). | Drop the quote instead of fabricating or regressing its timestamp. |
+| `0x200F` | 8207 | `ORACLE_ERR_SYMBOL_CAPACITY` | Update would add symbols beyond the 32 slots. | Remove symbols or deploy a larger oracle account. |
+| `0x2010` | 8208 | `ORACLE_ERR_INVALID_SYMBOL` | `symbol_id == 0`. | Use `symbol_id >= 1`. |
+| `0x2011` | 8209 | `ORACLE_ERR_NOT_TRIPPED` | `REBASE` submitted while the breaker is not tripped. | Use `UPDATE_PRICES` (type 1). |
+| `0x2012` | 8210 | `ORACLE_ERR_INVALID_REGIME` | `regime_id > 3`. | Clamp regime to 0..3. |
+| `0x2013` | 8211 | `ORACLE_ERR_RESIZE_FAILED` | Account resize failed during initialization. | Check account size and permissions. |

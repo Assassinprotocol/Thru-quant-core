@@ -48,7 +48,7 @@ export function isFutureSkew(
 }
 
 /**
- * Evaluates an asset against institutional risk policies:
+ * Evaluates an asset against risk policies:
  * 1. Circuit breaker gate
  * 2. Feed staleness gate (max 120s)
  * 3. Future clock skew gate (max 30s)

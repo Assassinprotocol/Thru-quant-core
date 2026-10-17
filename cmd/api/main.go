@@ -43,6 +43,7 @@ func main() {
 	dataDir := flag.String("data-dir", "data", "Path to market data fallback directory")
 	staticDir := flag.String("static-dir", "visualizer", "Path to visualizer web directory")
 	pollInterval := flag.Duration("poll-interval", 5*time.Second, "On-chain state refresh interval")
+	allowSnapshotFallback := flag.Bool("allow-snapshot-fallback", false, "Allow local snapshot failover in development mode")
 	flag.Parse()
 
 	log.Printf("[THRU:API] Starting Thru Quant Oracle API Daemon on :%s", *port)
@@ -53,14 +54,16 @@ func main() {
 	server.RegisterRoutes(mux)
 
 	httpServer := &http.Server{
-		Addr:         ":" + *port,
-		Handler:      mux,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Addr:              ":" + *port,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// Initial fetch
-	fetchAndPublishState(server, *oracleAccount, *dataDir)
+	fetchAndPublishState(server, *oracleAccount, *dataDir, *allowSnapshotFallback)
 
 	// Background polling worker
 	ticker := time.NewTicker(*pollInterval)
@@ -69,7 +72,7 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				fetchAndPublishState(server, *oracleAccount, *dataDir)
+				fetchAndPublishState(server, *oracleAccount, *dataDir, *allowSnapshotFallback)
 			case <-stopWorker:
 				ticker.Stop()
 				return
@@ -101,13 +104,22 @@ func main() {
 	log.Println("[THRU:API] Daemon stopped cleanly.")
 }
 
-func fetchAndPublishState(srv *api.Server, accountAddr, dataDir string) {
-	// Attempt 1: Fetch live on-chain state via Thru CLI / RPC
-	cmd := exec.Command("thru", "account", "info", "--json", accountAddr)
+func fetchAndPublishState(srv *api.Server, accountAddr, dataDir string, allowFallback bool) {
+	// Attempt 1: Fetch live on-chain state via Thru CLI / RPC with bounded context timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "thru", "account", "info", "--json", accountAddr)
 	out, err := cmd.Output()
 	if err == nil {
 		var resp ThruAccountInfoResp
 		if json.Unmarshal(out, &resp) == nil && resp.AccountInfo.Data != "" {
+			// Security validation: ensure returned pubkey matches expected account
+			if resp.AccountInfo.Pubkey != "" && resp.AccountInfo.Pubkey != accountAddr {
+				log.Printf("[THRU:API:SECURITY] Account address mismatch: expected %s, got %s", accountAddr, resp.AccountInfo.Pubkey)
+				srv.RecordRPCFailure()
+				return
+			}
 			state, decodeErr := api.DecodeOracleAccountBase64(resp.AccountInfo.Data)
 			if decodeErr == nil {
 				state.SourceMode = "ON_CHAIN_ALPHANET"
@@ -121,13 +133,21 @@ func fetchAndPublishState(srv *api.Server, accountAddr, dataDir string) {
 			}
 			log.Printf("[THRU:API:WARN] On-chain payload decode failed: %v", decodeErr)
 		}
+	} else {
+		srv.RecordRPCFailure()
+		log.Printf("[THRU:API:WARN] On-chain query failed: %v", err)
 	}
 
-	// Attempt 2: Fallback to local snapshot file if RPC is unreachable
-	state := readFallbackSnapshot(dataDir, accountAddr)
-	if state != nil {
-		srv.UpdateState(state)
-		log.Printf("[THRU:API:STATE] Running in LOCAL_SNAPSHOT_FAILOVER mode (%d quotes)", len(state.Entries))
+	// Attempt 2: Optional fallback to local snapshot file only in explicit dev mode
+	if allowFallback {
+		state := readFallbackSnapshot(dataDir, accountAddr)
+		if state != nil {
+			state.SourceMode = "LOCAL_SNAPSHOT_FALLBACK_DEV"
+			srv.UpdateState(state)
+			log.Printf("[THRU:API:STATE] Running in LOCAL_SNAPSHOT_FALLBACK_DEV mode (%d quotes)", len(state.Entries))
+		}
+	} else {
+		log.Printf("[THRU:API:FAIL_CLOSED] On-chain read failed and allow-snapshot-fallback is false; failing closed")
 	}
 }
 

@@ -5,20 +5,20 @@
 ![Network](https://img.shields.io/badge/Network-Thru%20Alphanet-black?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
-A high-performance market-data oracle and deterministic risk engine built in C for the **Thru Network** (RISC-V RV64IMC), paired with a zero-dependency TypeScript SDK and local Go API daemon.
+Market data oracle and reference matching engine in C for Thru Network (RISC-V RV64IMC), with Go daemon/feeder and TypeScript SDK.
 
 ---
 
-## 1. Overview & Verification Status
+## 1. Overview & Status
 
-`thru-quant-core` provides verifiable on-chain market data and deterministic execution primitives:
+`thru-quant-core` provides on-chain market data and deterministic execution primitives:
 
-1. **Deterministic Q64.64 Arithmetic**: 128-bit fixed-point math with Newton-Raphson square roots and checked division running natively on 64-bit ALU registers.
-2. **On-Chain Market Oracle**: Packed 948-byte storage account tracking up to 32 assets with cryptographic authority binding, freshness timestamps, and an on-chain volatility circuit breaker (500 bps limit).
-3. **Deterministic Reference Matching Engine**: Continuous limit orderbook research prototype using an intrusive doubly-linked price-time priority ladder with $O(1)$ BBO access.
-4. **Multi-Runtime Integration**: A local Go feeder/daemon and a zero-dependency TypeScript SDK (`@thru-quant/core-sdk`) with exact arbitrary-precision BigInt math.
+1. **Q64.64 Arithmetic**: 128-bit fixed-point math with Newton-Raphson square roots and checked division running on 64-bit ALU registers.
+2. **Market Oracle**: Packed 948-byte storage account tracking up to 32 assets with authority binding, freshness timestamps, and a 500 bps volatility circuit breaker.
+3. **Reference Matching Engine**: Continuous limit orderbook prototype using an intrusive doubly-linked price-time priority ladder with O(1) BBO access.
+4. **Integration Layer**: Local Go feeder/daemon and zero-dependency TypeScript SDK (`@thru-quant/core-sdk`).
 
-### Component Maturity & Verification Status
+### Component Status
 
 | Module / Component | Status Tier | Host Tested (ASan) | Target Built (RV64) | On-Chain Alphanet | Production Ready |
 |---|:---:|:---:|:---:|:---:|:---:|
@@ -26,8 +26,8 @@ A high-performance market-data oracle and deterministic risk engine built in C f
 | **Market Oracle Program** | `Alphanet-verified` | Yes | Yes | Yes (Slot 7743340) | Planned |
 | **Circuit Breaker Lifecycle** | `Alphanet-verified` | Yes | Yes | Yes (Slot 7743340) | Planned |
 | **Binary Memory Decoder (Go)** | `Runtime-verified` | Yes | N/A | Yes (Verified) | Planned |
-| **TypeScript SDK (@thru-quant/core-sdk)** | `Production-packaged` | Yes | N/A | Yes (Cross-lang verified) | Planned |
-| **Autonomous Risk Agent** | `Verified-Consumer` | Yes | N/A | Yes (Dry-run verified) | Planned |
+| **TypeScript SDK (@thru-quant/core-sdk)** | `Runtime-verified` | Yes | N/A | Yes (Cross-lang verified) | Planned |
+| **Autonomous Risk Agent** | `Host-tested` | Yes | N/A | Dry-run verified | Planned |
 | **Reference CLOB Engine** | `Target-built` | Yes | Yes | Yes (Slot 7743774) | Out-of-Scope (Research) |
 | **Token Escrow & Custody** | `Not Implemented` | No | No | No | Out-of-Scope |
 
@@ -46,7 +46,7 @@ $$\text{Value} = \frac{X}{2^{64}}$$
 
 - **Safe Limb Division (`q64_div`)**: Replaces naive 128-bit shift division with a three-stage limb-division algorithm ($q_{\text{int}} = ua / ub$, $rem = ua \pmod{ub}$, $q_{\text{frac}} = (rem \cdot 2^{64}) / ub$) to prevent MSB truncation for operands $\ge 1.0$.
 - **Newton-Raphson Square Root (`q64_sqrt`)**: Computes convergence iteratively via $y_{k+1} = \frac{1}{2}(y_k + \frac{x}{y_k})$ up to machine epsilon, eliminating bit-shift truncation present in classical integer square root algorithms.
-- **Transcendental Functions**: Taylor polynomial approximation for natural exponential ($\exp(x)$), natural logarithm ($\ln(x)$), and standard trigonometric functions.
+- **Transcendental Functions**: Range-reduced implementations of $\exp(x)$ and $\ln(x)$ (there are no trigonometric functions). Measured against a 113-bit reference: $\exp$ relative error $\le 5.4\times10^{-17}$, $\ln$ absolute error $\le 5.3$ ulp ($2^{-64}$); enforced by decimal-generated golden vectors (`make test-math-golden`).
 
 ### 2.2 Micro-CLOB Orderbook (`src/clob_engine.c`, `src/clob_engine.h`)
 
@@ -113,20 +113,19 @@ All data structures use the `__attribute__((packed))` directive to eliminate com
 
 ---
 
-## 5. Architectural Topology
+## 5. Architecture
 
-### 5.1 End-to-End Data Pipeline
+### 5.1 Pipeline
 
 ```mermaid
 flowchart LR
-    Source[Market Data Ingestion] --> Feeder[Go Feeder Service]
-    Feeder -->|Signed Update Tx| RPC[Thru RPC Gateway]
-    RPC -->|Syscall Entrypoint| Oracle[Market Oracle Contract]
-    Oracle --> Storage[(Storage Account 948B)]
+    Feeder[Go Feeder] -->|Signed Tx| RPC[Thru RPC]
+    RPC --> Oracle[Market Oracle Program]
+    Oracle --> Storage[(Oracle Account 948B)]
     Storage --> Daemon[Go API Daemon]
     Storage --> SDK[TypeScript SDK]
-    Daemon --> Console[Web Telemetry Console]
-    SDK --> Consumers[DeFi dApps & Quant Agents]
+    Daemon --> Console[Web Console]
+    SDK --> Client[Applications / Agents]
 ```
 
 ### 5.2 Reference CLOB Priority Matching Ladder
@@ -193,26 +192,25 @@ Compiled ELF and flat binaries are emitted to `build/thruvm/bin/`:
 - `market_oracle_c.bin` (14,104 bytes)
 - `clob_engine_c.bin` (15,863 bytes)
 
-### 8.3 Executing Host Architectural Test Suite
+### 8.3 Running Tests
 ```bash
 make test
 ```
 The test runner builds and executes:
 1. `tests/test_thru_math`: Validates safe limb-division, fixed-point multiplication, Newton-Raphson square roots, and boundary edge cases.
 2. `tests/test_simulation`: Validates price-time priority matching, intrusive doubly-linked list operations, and the 500 bps volatility circuit breaker.
-3. `tests/test_contracts`: Validates 14 real contract entrypoint lifecycle scenarios including anti-state wipe and authorized recovery.
+3. `tests/test_contracts`: Validates 14 contract entrypoint lifecycle scenarios including anti-state wipe and authorized recovery.
 
-### 8.4 Clean-Clone Reproduction & Empirical Benchmarks
-To run the full end-to-end verification suite across all C harnesses, Go decoders, standalone binaries, and empirical latency benchmarks:
+### 8.4 Verification Script & Benchmarks
 ```bash
-# Execute single-command clean verification
+# Run full verification suite
 bash scripts/verify_reproduce.sh
 
-# Run empirical Q64.64 math and Go binary decoding benchmarks
+# Run benchmarks
 make bench-math
 make bench-api
 ```
-See [docs/benchmarks.md](docs/benchmarks.md) for empirical latency and throughput profiles, and [docs/runbook.md](docs/runbook.md) for operator runbooks.
+See [docs/benchmarks.md](docs/benchmarks.md) for latency benchmarks, and [docs/runbook.md](docs/runbook.md) for operations.
 
 ---
 
@@ -268,47 +266,47 @@ Visit `http://localhost:8080/` to access the live dark telemetry dashboard featu
 
 ---
 
-## 11. TypeScript SDK & Developer Adoption Pack (`@thru-quant/core-sdk`)
+## 11. TypeScript SDK (`@thru-quant/core-sdk`)
 
-The zero-dependency TypeScript SDK enables dApps, lending protocols, and autonomous AI agents to consume on-chain Oracle state and evaluate deterministic risk policies in under 5 minutes:
+Zero-dependency TypeScript client for reading on-chain Oracle state and evaluating risk policies:
 
 ```bash
 # Build SDK and standalone bundle
 make build-sdk
 
-# Run cross-language and SDK tests
+# Run SDK tests
 make test-sdk
 
-# Run autonomous quant risk-agent simulation
+# Run example consumer
 make run-example
 ```
 
-### 11.1 4-Line TypeScript Integration
+### 11.1 Quick Usage
 ```typescript
 import { OracleClient, evaluateRiskGate } from "@thru-quant/core-sdk";
 
-const client = new OracleClient({ daemonUrl: "http://localhost:8082" });
+const client = new OracleClient({ daemonUrl: "http://localhost:8080" });
 const state = await client.getLatestState();
-const btc = state.bySymbol["BTCUSDT"]; // O(1) constant-time lookup
+const btc = state.bySymbol["BTCUSDT"];
 console.log(`BTC: $${btc.priceDecimal} | Vol: ${btc.volatilityBps} bps`);
 ```
 
-### 11.2 Operator CLI Diagnostic Tool
+### 11.2 CLI Diagnostic Tool
 ```bash
-# Display summary table of all 28 assets and breaker state
+# Display summary table of all assets and breaker state
 ./sdk/bin/cli.js status
 
-# Deep quote inspection
+# Inspect single quote
 ./sdk/bin/cli.js quote BTCUSDT
 ```
 
-### 11.3 Specifications & Release Evidence
-- [docs/specification.md](docs/specification.md): Formal RFC-style Wire Specification & Memory Map
-- [docs/quickstart.md](docs/quickstart.md): 5-Minute Developer Quickstart Guide
-- [docs/runbook.md](docs/runbook.md): Operator Incident Runbook & Playbooks
-- [docs/releases/v0.4.0.md](docs/releases/v0.4.0.md): Release Evidence Pack v0.4.0 (Productization & Developer Adoption Pack)
-- [docs/releases/v0.3.0.md](docs/releases/v0.3.0.md): Release Evidence Pack v0.3.0 (Operational Hardening)
-- [docs/releases/v0.2.0.md](docs/releases/v0.2.0.md): Release Evidence Pack v0.2.0 (Verifiable Data Path)
+### 11.3 Documentation
+- [docs/specification.md](docs/specification.md): Wire specification and memory map
+- [docs/quickstart.md](docs/quickstart.md): Quickstart guide
+- [docs/runbook.md](docs/runbook.md): Operator runbook
+- [docs/thru-runtime-assumptions.md](docs/thru-runtime-assumptions.md): ThruVM runtime execution assumptions
+- [docs/benchmarks.md](docs/benchmarks.md): Performance benchmarks
+- [docs/claims.md](docs/claims.md): Evidence registry and deployment status
 
 ---
 

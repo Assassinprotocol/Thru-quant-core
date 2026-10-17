@@ -11,12 +11,16 @@ command -v node >/dev/null 2>&1 || { echo "Error: node not found"; exit 1; }
 
 make test
 make test-simulation
+make test-hardening
+make test-math-golden
+make lint-c
 make test-api
 make build-api
-go build -o build/feeder ./feeder/main.go
+make build-feeder
 make build-sdk
 make test-sdk
 make run-example
 make bench-math
 make bench-api
+make clean-tests
 

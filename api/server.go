@@ -80,6 +80,8 @@ func (s *Server) UpdateState(newState *OracleState) {
 	}
 }
 
+const MaxSSEClients = 256
+
 // RegisterRoutes registers all REST and SSE endpoints with the given ServeMux
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/health", s.withCORS(s.handleHealth))
@@ -88,6 +90,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/oracle/latest", s.withCORS(s.handleOracleLatest))
 	mux.HandleFunc("/v1/oracle/history", s.withCORS(s.handleOracleHistory))
 	mux.HandleFunc("/v1/stream", s.withCORS(s.handleStream))
+	mux.HandleFunc("/metrics", s.handleMetrics)
 
 	if s.staticDir != "" {
 		fs := http.FileServer(http.Dir(s.staticDir))
@@ -199,6 +202,9 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	} else if feedAge > 120 {
 		ready = false
 		status = "stale"
+	} else if source == "LOCAL_SNAPSHOT_FAILOVER" || source == "LOCAL_SNAPSHOT_FALLBACK_DEV" {
+		ready = false
+		status = "unverified_fallback_source"
 	}
 
 	resp := ReadyResponse{
@@ -310,6 +316,10 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rc := http.NewResponseController(w)
+	// Clear the server-wide WriteTimeout so persistent SSE streaming connections are not killed at 15s
+	_ = rc.SetWriteDeadline(time.Time{})
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -317,6 +327,11 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	subChan := make(chan []byte, 16)
 
 	s.subMu.Lock()
+	if len(s.subscribers) >= MaxSSEClients {
+		s.subMu.Unlock()
+		http.Error(w, `{"error":"maximum SSE subscriber limit reached (256)"}`, http.StatusServiceUnavailable)
+		return
+	}
 	s.subscribers[subChan] = true
 	s.subMu.Unlock()
 
@@ -332,13 +347,14 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	if s.state != nil {
 		initialBytes, err := json.Marshal(s.state)
 		if err == nil {
+			_ = rc.SetWriteDeadline(time.Now().Add(30 * time.Second))
 			fmt.Fprintf(w, "event: oracle_state\ndata: %s\n\n", initialBytes)
 			flusher.Flush()
 		}
 	}
 	s.mu.RUnlock()
 
-	keepaliveTicker := time.NewTicker(15 * time.Second)
+	keepaliveTicker := time.NewTicker(10 * time.Second)
 	defer keepaliveTicker.Stop()
 
 	for {
@@ -346,11 +362,62 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case <-keepaliveTicker.C:
+			_ = rc.SetWriteDeadline(time.Now().Add(30 * time.Second))
 			fmt.Fprintf(w, ": keepalive\n\n")
 			flusher.Flush()
 		case data := <-subChan:
+			_ = rc.SetWriteDeadline(time.Now().Add(30 * time.Second))
 			fmt.Fprintf(w, "event: oracle_state\ndata: %s\n\n", data)
 			flusher.Flush()
 		}
 	}
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	feedAge := uint32(0)
+	breakerActive := 0
+	if s.state != nil {
+		nowSec := uint32(time.Now().Unix())
+		if nowSec > s.state.LastUpdateTS && s.state.LastUpdateTS > 0 {
+			feedAge = nowSec - s.state.LastUpdateTS
+		}
+		if s.state.CircuitBreakerActive {
+			breakerActive = 1
+		}
+	}
+	s.mu.RUnlock()
+
+	s.subMu.Lock()
+	activeClients := len(s.subscribers)
+	s.subMu.Unlock()
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	fmt.Fprintf(w, "# HELP api_requests_total Total HTTP requests handled\n")
+	fmt.Fprintf(w, "# TYPE api_requests_total counter\n")
+	fmt.Fprintf(w, "api_requests_total %d\n\n", s.requestsTotal.Load())
+
+	fmt.Fprintf(w, "# HELP api_rpc_failures_total Total failed RPC calls to the Thru node\n")
+	fmt.Fprintf(w, "# TYPE api_rpc_failures_total counter\n")
+	fmt.Fprintf(w, "api_rpc_failures_total %d\n\n", s.rpcFailuresTotal.Load())
+
+	fmt.Fprintf(w, "# HELP api_oracle_updates_total Total on-chain oracle updates received\n")
+	fmt.Fprintf(w, "# TYPE api_oracle_updates_total counter\n")
+	fmt.Fprintf(w, "api_oracle_updates_total %d\n\n", s.oracleUpdatesTotal.Load())
+
+	fmt.Fprintf(w, "# HELP api_circuit_breaker_trips_total Total circuit breaker trips observed\n")
+	fmt.Fprintf(w, "# TYPE api_circuit_breaker_trips_total counter\n")
+	fmt.Fprintf(w, "api_circuit_breaker_trips_total %d\n\n", s.circuitBreakerTripsTotal.Load())
+
+	fmt.Fprintf(w, "# HELP api_stream_clients_active Number of active SSE streaming clients\n")
+	fmt.Fprintf(w, "# TYPE api_stream_clients_active gauge\n")
+	fmt.Fprintf(w, "api_stream_clients_active %d\n\n", activeClients)
+
+	fmt.Fprintf(w, "# HELP api_feed_age_seconds Current age of the oracle state in seconds\n")
+	fmt.Fprintf(w, "# TYPE api_feed_age_seconds gauge\n")
+	fmt.Fprintf(w, "api_feed_age_seconds %d\n\n", feedAge)
+
+	fmt.Fprintf(w, "# HELP api_circuit_breaker_active Whether circuit breaker is tripped (1) or normal (0)\n")
+	fmt.Fprintf(w, "# TYPE api_circuit_breaker_active gauge\n")
+	fmt.Fprintf(w, "api_circuit_breaker_active %d\n", breakerActive)
 }

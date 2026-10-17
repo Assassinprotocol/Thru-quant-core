@@ -56,7 +56,7 @@ static void remove_test_ask(clob_state_t *state, int16_t idx) {
 }
 
 static void test_oracle_logic(void) {
-    printf("[SIM] Testing Market Oracle Hardened Logic...\n");
+    printf("test_simulation: testing market oracle logic...\n");
 
     oracle_account_data_t oracle_storage;
     memset(&oracle_storage, 0, sizeof(oracle_storage));
@@ -172,16 +172,8 @@ static void test_clob_bbo_price_priority(void) {
 }
 
 int main(void) {
-    printf("========================================\n");
-    printf("THRU QUANT CORE — HARDENED SIMULATION\n");
-    printf("========================================\n\n");
-
     test_oracle_logic();
-    printf("\n");
     test_clob_bbo_price_priority();
-
-    printf("\n========================================\n");
-    printf("ALL BULLETPROOF SIMULATIONS PASSED (100%%)\n");
-    printf("========================================\n");
+    printf("test_simulation: all simulation tests passed\n");
     return 0;
 }

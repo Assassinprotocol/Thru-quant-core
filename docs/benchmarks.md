@@ -66,7 +66,7 @@ $$\bar{r} = \frac{1}{N} \sum_{i=1}^{N} r_i$$
 
 $$\sigma = \sqrt{\frac{1}{N-1} \sum_{i=1}^{N} (r_i - \bar{r})^2}$$
 
-$$\text{Volatility (bps)} = \min\left(10{,}000, \; \text{round}(\sigma \times 10{,}000)\right)$$
+$$\text{Volatility (bps)} = \min\left(10{,}000, \; \lfloor \sigma \times 10{,}000 \rfloor\right)$$
 
 ### Statistical Rules & Boundary Guards:
 1. **Minimum Sample Horizon**: $N_{\text{min}} = 10$. If fewer than 10 valid price points exist, `volatility_bps` is strictly set to `0`.

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   encodeOracleUpdate,
   encodeOracleResume,
+  encodeOracleRebase,
   UPDATE_HEADER_SIZE,
   RESUME_ARGS_SIZE,
 } from "../src/encoder.ts";
@@ -90,5 +91,36 @@ describe("Binary Wire Encoder (encoder.ts)", () => {
         }),
       (err: any) => err instanceof RangeError && err.message.includes("Cannot encode more than 32 symbols")
     );
+  });
+
+  test("encodeOracleRebase generates canonical opcode 3 payload", () => {
+    const payload = encodeOracleRebase({
+      oracleAccountIdx: 2,
+      regimeId: 0,
+      timestamp: 1700000000,
+      entries: [
+        {
+          symbolId: 1, // BTCUSDT
+          priceQ64Hi: 90000n,
+          priceQ64Lo: 0n,
+          volatilityBps: 200,
+          timestamp: 1700000000,
+        },
+      ],
+    });
+
+    const expectedLength = UPDATE_HEADER_SIZE + 1 * 28; // 18 + 28 = 46 bytes
+    assert.equal(payload.length, expectedLength);
+
+    const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+    assert.equal(view.getUint32(0, true), OracleInstruction.REBASE); // Opcode 3
+    assert.equal(view.getUint16(4, true), 2);
+    assert.equal(view.getUint32(6, true), 0);
+    assert.equal(view.getUint32(10, true), 1700000000);
+    assert.equal(view.getUint32(14, true), 1); // 1 entry
+
+    // Entry
+    assert.equal(view.getUint32(18, true), 1);
+    assert.equal(view.getBigUint64(22, true), 90000n);
   });
 });

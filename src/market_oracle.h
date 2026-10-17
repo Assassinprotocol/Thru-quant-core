@@ -8,6 +8,7 @@
 #define ORACLE_INSTR_INITIALIZE     (0U)
 #define ORACLE_INSTR_UPDATE_PRICES  (1U)
 #define ORACLE_INSTR_RESUME         (2U)
+#define ORACLE_INSTR_REBASE         (3U)  /* authority-only: apply entries without deviation check AND clear a tripped breaker */
 
 /* Error codes */
 #define ORACLE_ERR_INVALID_INSTR_SIZE   (0x2001UL)
@@ -22,6 +23,13 @@
 #define ORACLE_ERR_FUTURE_SKEW          (0x200AUL)
 #define ORACLE_ERR_DUPLICATE_SYMBOL     (0x200BUL)
 #define ORACLE_ERR_INVALID_PRICE        (0x200CUL)
+#define ORACLE_ERR_CLOCK_UNAVAILABLE    (0x200DUL)
+#define ORACLE_ERR_ENTRY_TIMESTAMP      (0x200EUL)
+#define ORACLE_ERR_SYMBOL_CAPACITY      (0x200FUL)
+#define ORACLE_ERR_INVALID_SYMBOL       (0x2010UL)
+#define ORACLE_ERR_NOT_TRIPPED          (0x2011UL)
+#define ORACLE_ERR_INVALID_REGIME       (0x2012UL)
+#define ORACLE_ERR_RESIZE_FAILED        (0x2013UL)
 
 #define MAX_ORACLE_SYMBOLS (32)
 #define MAX_ALLOWED_DEVIATION_BPS (500) /* Max 5% delta per single slot update */

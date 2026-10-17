@@ -21,4 +21,13 @@ export declare function encodeOracleUpdate(args: OracleUpdateArgs): Uint8Array;
  * @returns 6-byte Little-Endian Uint8Array (canonical: 020000000200)
  */
 export declare function encodeOracleResume(accountIdx?: number): Uint8Array;
+/**
+ * Serializes an Oracle Circuit Breaker Rebase instruction payload.
+ * Matches C struct `oracle_update_hdr_t` followed by `oracle_entry_t[count]` with opcode REBASE (3).
+ * Allows authorized publisher to set clean baseline quotes and reset a tripped breaker.
+ *
+ * @param args OracleUpdateArgs containing entries, regime, timestamp, and account index
+ * @returns Little-Endian binary payload (18 + count * 28 bytes)
+ */
+export declare function encodeOracleRebase(args: OracleUpdateArgs): Uint8Array;
 //# sourceMappingURL=encoder.d.ts.map

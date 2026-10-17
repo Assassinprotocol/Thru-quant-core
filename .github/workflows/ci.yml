@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Build & Verify Architectural Simulation
+    name: Build & Verify Test Suite
     runs-on: ubuntu-latest
 
     steps:

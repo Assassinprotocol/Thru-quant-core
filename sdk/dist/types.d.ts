@@ -16,10 +16,11 @@ export declare const OracleInstruction: {
     readonly INITIALIZE: 0;
     readonly UPDATE_PRICES: 1;
     readonly RESUME: 2;
+    readonly REBASE: 3;
 };
 export type OracleInstruction = (typeof OracleInstruction)[keyof typeof OracleInstruction];
 /**
- * Contract status and error codes (0x2001 - 0x200C)
+ * Contract status and error codes (0x2001 - 0x2013)
  */
 export declare const OracleErrorCode: {
     readonly INVALID_INSTR_SIZE: 8193;
@@ -34,8 +35,19 @@ export declare const OracleErrorCode: {
     readonly FUTURE_SKEW: 8202;
     readonly DUPLICATE_SYMBOL: 8203;
     readonly INVALID_PRICE: 8204;
+    readonly CLOCK_UNAVAILABLE: 8205;
+    readonly ENTRY_TIMESTAMP: 8206;
+    readonly SYMBOL_CAPACITY: 8207;
+    readonly INVALID_SYMBOL: 8208;
+    readonly NOT_TRIPPED: 8209;
+    readonly INVALID_REGIME: 8210;
+    readonly RESIZE_FAILED: 8211;
 };
 export type OracleErrorCode = (typeof OracleErrorCode)[keyof typeof OracleErrorCode];
+/**
+ * Descriptive human-readable explanations for Oracle contract errors
+ */
+export declare const OracleErrorMessages: Record<number, string>;
 /**
  * Human-readable mapping of market regimes
  */

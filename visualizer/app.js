@@ -1,5 +1,5 @@
 /**
- * Thru Quant Core — Institutional Live Developer Telemetry & Oracle Console
+ * Thru Quant Core — Developer Telemetry & Oracle Console
  * Connects directly to Go API daemon (/v1/stream with SSE, auto-fallback to REST /v1/oracle/latest)
  */
 

@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -179,5 +181,100 @@ func TestHandleOracleLatest(t *testing.T) {
 
 	if len(state.Entries) != 28 {
 		t.Errorf("expected 28 entries, got %d", len(state.Entries))
+	}
+}
+
+func TestHandleMetrics(t *testing.T) {
+	srv := setupTestServer()
+	mux := http.NewServeMux()
+	srv.RegisterRoutes(mux)
+
+	req := httptest.NewRequest("GET", "/metrics", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for /metrics, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	expectedMetrics := []string{
+		"api_requests_total",
+		"api_rpc_failures_total",
+		"api_oracle_updates_total",
+		"api_stream_clients_active",
+		"api_circuit_breaker_active",
+	}
+
+	for _, m := range expectedMetrics {
+		if !strings.Contains(body, m) {
+			t.Errorf("expected metric %s in /metrics output", m)
+		}
+	}
+}
+
+func TestHandleReady_UnverifiedSource(t *testing.T) {
+	srv := setupTestServer()
+	srv.mu.Lock()
+	srv.state.SourceMode = "LOCAL_SNAPSHOT_FAILOVER"
+	srv.mu.Unlock()
+
+	mux := http.NewServeMux()
+	srv.RegisterRoutes(mux)
+
+	req := httptest.NewRequest("GET", "/ready", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status 503 for unverified fallback source, got %d", w.Code)
+	}
+
+	var resp ReadyResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Ready || resp.Status != "unverified_fallback_source" {
+		t.Errorf("expected ready false with unverified_fallback_source, got ready=%v status=%s", resp.Ready, resp.Status)
+	}
+}
+
+func TestSSEStreaming(t *testing.T) {
+	srv := setupTestServer()
+	mux := http.NewServeMux()
+	srv.RegisterRoutes(mux)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest("GET", "/v1/stream", nil).WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		mux.ServeHTTP(w, req)
+	}()
+
+	// Allow client connection to register
+	time.Sleep(50 * time.Millisecond)
+
+	srv.subMu.Lock()
+	subs := len(srv.subscribers)
+	srv.subMu.Unlock()
+	if subs != 1 {
+		t.Fatalf("expected 1 active subscriber, got %d", subs)
+	}
+
+	// Trigger a state update broadcast
+	freshState := *srv.state
+	freshState.Slot = 7743345
+	srv.UpdateState(&freshState)
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	<-done
+
+	output := w.Body.String()
+	if !strings.Contains(output, "event: oracle_state") {
+		t.Errorf("expected event: oracle_state in stream output")
 	}
 }

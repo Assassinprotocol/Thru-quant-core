@@ -415,14 +415,8 @@ static void test_clob_lifecycle_and_invariants(void) {
 }
 
 int main(void) {
-    printf("=================================================================\n");
-    printf("  THRU QUANT CORE — NATIVE C ENTRYPOINT CONTRACT TEST HARNESS    \n");
-    printf("  Testing real handle_* and start() logic with mock syscalls     \n");
-    printf("=================================================================\n");
-
     test_oracle_lifecycle_and_breaker();
     test_clob_lifecycle_and_invariants();
-
-    printf("\n[SUCCESS] ALL 14 ARCHITECTURAL CONTRACT SCENARIOS PASSED WITH ZERO FAULTS!\n");
+    printf("test_contracts: all 14 scenarios passed\n");
     return 0;
 }

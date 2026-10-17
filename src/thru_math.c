@@ -109,82 +109,67 @@ q64_t q64_sqrt(q64_t x) {
     return y;
 }
 
+/* ---- Transcendentals (Phase 7: range-reduced, measured against a 113-bit reference) ------------
+ * exp : x = k*ln2 + r, |r| <= ~0.3466; degree-16 Taylor on r (Horner, precomputed 1/n!); result 2^k * e^r.
+ * ln  : x = m*2^e with m in (0.7071, 1.4142]; ln m = 2*atanh((m-1)/(m+1)), |y| <= 0.1716, 13 odd terms.
+ * Domain: exp(x) = Q64_MAX for x > 43, 0 for x < -45. ln(x <= 0) = Q64_MIN (sentinel, see PHASE7 P1-M2).
+ * Constants are compile-time (no runtime division). ln2 uses a 128-bit constant so k*ln2 does not
+ * amplify the 64-bit truncation error. */
+#define LN2_HI    0xB17217F7D1CF79ABULL
+#define LN2_LO    0xC9E3B39803F2F6AFULL
+#define LOG2E_Q64 ((((uq64_t)1) << 64) | (uq64_t)0x71547652B82FE177ULL)
+#define SQRT2_Q64 ((((uq64_t)1) << 64) | (uq64_t)0x6A09E667F3BCC908ULL)
+#define QRECIP(n) ((q64_t)((((uq64_t)1) << 64) / (uq64_t)(n)))
+
+static const q64_t EXP_C[17] = {
+    QRECIP(1), QRECIP(1), QRECIP(2), QRECIP(6), QRECIP(24), QRECIP(120), QRECIP(720), QRECIP(5040),
+    QRECIP(40320), QRECIP(362880), QRECIP(3628800), QRECIP(39916800ULL), QRECIP(479001600ULL),
+    QRECIP(6227020800ULL), QRECIP(87178291200ULL), QRECIP(1307674368000ULL), QRECIP(20922789888000ULL)
+};
+static const q64_t LN_C[13] = {
+    QRECIP(1), QRECIP(3), QRECIP(5), QRECIP(7), QRECIP(9), QRECIP(11), QRECIP(13),
+    QRECIP(15), QRECIP(17), QRECIP(19), QRECIP(21), QRECIP(23), QRECIP(25)
+};
+
+static q64_t q64_mul_ln2_int(int64_t k) {
+    uint64_t a = (k < 0) ? (uint64_t)(-(k + 1)) + 1ULL : (uint64_t)k;
+    uq64_t v = (uq64_t)a * LN2_HI + (((uq64_t)a * LN2_LO) >> 64);
+    return (k < 0) ? (q64_t)((uq64_t)0 - v) : (q64_t)v;
+}
+
 q64_t q64_exp(q64_t x) {
     if (x == 0) return Q64_ONE;
     if (x < -((q64_t)45 << 64)) return 0;
-    if (x > ((q64_t)45 << 64)) return Q64_MAX;
+    if (x > ((q64_t)43 << 64)) return Q64_MAX;
 
-    bool neg = (x < 0);
-    if (neg) x = -x;
+    q64_t kq = q64_mul(x, (q64_t)LOG2E_Q64);
+    int64_t k = q64_to_int(kq + ((x >= 0) ? Q64_HALF : -Q64_HALF));
+    q64_t r = x - q64_mul_ln2_int(k);
 
-    int64_t integer_part = q64_to_int(x);
-    q64_t frac = x - q64_from_int(integer_part);
+    q64_t p = EXP_C[16];
+    for (int n = 15; n >= 0; n--) p = EXP_C[n] + q64_mul(r, p);
 
-    q64_t sum = Q64_ONE;
-    q64_t term = frac;
-    sum += term;
-
-    term = q64_mul(term, frac) / 2;
-    sum += term;
-
-    term = q64_mul(term, frac) / 3;
-    sum += term;
-
-    term = q64_mul(term, frac) / 4;
-    sum += term;
-
-    term = q64_mul(term, frac) / 5;
-    sum += term;
-
-    term = q64_mul(term, frac) / 6;
-    sum += term;
-
-    q64_t e_int = Q64_ONE;
-    q64_t e_base = Q64_E;
-    while (integer_part > 0) {
-        if (integer_part & 1) {
-            e_int = q64_mul(e_int, e_base);
-        }
-        e_base = q64_mul(e_base, e_base);
-        integer_part >>= 1;
+    if (k >= 0) {
+        if (k > 62 || p > (Q64_MAX >> k)) return Q64_MAX;
+        return p << k;
     }
-
-    q64_t result = q64_mul(sum, e_int);
-    return neg ? q64_div(Q64_ONE, result) : result;
+    if (k < -127) return 0;
+    return p >> (-k);
 }
 
 q64_t q64_ln(q64_t x) {
     if (x <= 0) return Q64_MIN;
-    if (x == Q64_ONE) return 0;
+    uq64_t ux = (uq64_t)x;
+    uint64_t hi = (uint64_t)(ux >> 64), lo = (uint64_t)ux;
+    int msb = hi ? (127 - __builtin_clzll(hi)) : (63 - __builtin_clzll(lo));
+    int e = msb - 64;
+    uq64_t m = (e >= 0) ? (ux >> e) : (ux << (-e));
+    if (m > SQRT2_Q64) { m >>= 1; e += 1; }
 
-    uq64_t val = (uq64_t)x;
-    int lz = 0;
-    uint64_t hi = (uint64_t)(val >> 64);
-    uint64_t lo = (uint64_t)val;
-    if (hi != 0) {
-        lz = __builtin_clzll(hi);
-    } else {
-        lz = 64 + __builtin_clzll(lo);
-    }
-
-    int shift = 63 - (127 - lz);
-    q64_t norm = (shift >= 0) ? (x << shift) : (x >> -shift);
-
-    q64_t y = q64_div(norm - Q64_ONE, norm + Q64_ONE);
+    q64_t mm = (q64_t)m;
+    q64_t y = q64_div(mm - Q64_ONE, mm + Q64_ONE);
     q64_t y2 = q64_mul(y, y);
-    q64_t term = y;
-    q64_t sum = term;
-
-    term = q64_mul(term, y2);
-    sum += term / 3;
-
-    term = q64_mul(term, y2);
-    sum += term / 5;
-
-    term = q64_mul(term, y2);
-    sum += term / 7;
-
-    sum = sum * 2;
-    q64_t shift_ln2 = q64_mul(q64_from_int(-shift), Q64_LN2);
-    return sum + shift_ln2;
+    q64_t p = LN_C[12];
+    for (int k = 11; k >= 0; k--) p = LN_C[k] + q64_mul(y2, p);
+    return 2 * q64_mul(y, p) + q64_mul_ln2_int(e);
 }

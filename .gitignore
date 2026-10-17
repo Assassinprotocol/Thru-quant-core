@@ -12,6 +12,8 @@ tests/test_math
 tests/test_simulation
 tests/test_contracts
 tests/test_bench
+tests/test_oracle_hardening
+tests/test_math_golden
 feeder/feeder
 
 # System & editor files
@@ -23,4 +25,8 @@ feeder/feeder
 node_modules/
 package-lock.json
 *.map
+
+# Runtime data & logs
+data/
+*.log
 

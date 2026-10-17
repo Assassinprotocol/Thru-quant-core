@@ -23,9 +23,10 @@ export const OracleInstruction = {
     INITIALIZE: 0,
     UPDATE_PRICES: 1,
     RESUME: 2,
+    REBASE: 3,
 };
 /**
- * Contract status and error codes (0x2001 - 0x200C)
+ * Contract status and error codes (0x2001 - 0x2013)
  */
 export const OracleErrorCode = {
     INVALID_INSTR_SIZE: 0x2001,
@@ -40,6 +41,37 @@ export const OracleErrorCode = {
     FUTURE_SKEW: 0x200a,
     DUPLICATE_SYMBOL: 0x200b,
     INVALID_PRICE: 0x200c,
+    CLOCK_UNAVAILABLE: 0x200d,
+    ENTRY_TIMESTAMP: 0x200e,
+    SYMBOL_CAPACITY: 0x200f,
+    INVALID_SYMBOL: 0x2010,
+    NOT_TRIPPED: 0x2011,
+    INVALID_REGIME: 0x2012,
+    RESIZE_FAILED: 0x2013,
+};
+/**
+ * Descriptive human-readable explanations for Oracle contract errors
+ */
+export const OracleErrorMessages = {
+    0x2001: "Instruction size does not match expected header or entry payload",
+    0x2002: "Invalid or unsupported instruction opcode",
+    0x2003: "Unauthorized: caller fee payer is not bound authority",
+    0x2004: "Data access failed: account index invalid, missing, or size mismatch",
+    0x2005: "Account initialization failed during system create",
+    0x2006: "Invalid entry count (must be between 1 and 32)",
+    0x2007: "Circuit breaker tripped: price deviation exceeded limit",
+    0x2008: "Account already initialized: double initialization rejected",
+    0x2009: "Header timestamp is stale compared to stored state or block time",
+    0x200a: "Header timestamp is too far in future (> 30s skew)",
+    0x200b: "Duplicate symbol ID found in incoming quote batch",
+    0x200c: "Invalid quote price: zero price or MSB sign bit set",
+    0x200d: "Clock unavailable: block context is NULL or block_time is zero",
+    0x200e: "Entry timestamp invalid: future to header, older than stored, or regressive",
+    0x200f: "Symbol capacity exceeded (> 32 unique symbols)",
+    0x2010: "Invalid symbol ID: symbol ID must be greater than zero",
+    0x2011: "Circuit breaker is not tripped: cannot resume untripped oracle",
+    0x2012: "Invalid market regime ID: must be between 0 and 3",
+    0x2013: "Account resize failed during initialization",
 };
 /**
  * Human-readable mapping of market regimes
@@ -336,6 +368,39 @@ export function encodeOracleResume(accountIdx = 2) {
     view.setUint16(4, accountIdx, true); // uint16
     return new Uint8Array(buffer);
 }
+/**
+ * Serializes an Oracle Circuit Breaker Rebase instruction payload.
+ * Matches C struct `oracle_update_hdr_t` followed by `oracle_entry_t[count]` with opcode REBASE (3).
+ * Allows authorized publisher to set clean baseline quotes and reset a tripped breaker.
+ *
+ * @param args OracleUpdateArgs containing entries, regime, timestamp, and account index
+ * @returns Little-Endian binary payload (18 + count * 28 bytes)
+ */
+export function encodeOracleRebase(args) {
+    if (args.entries.length > MAX_ORACLE_SYMBOLS) {
+        throw new RangeError(`Cannot encode more than ${MAX_ORACLE_SYMBOLS} symbols in a single rebase: got ${args.entries.length}`);
+    }
+    const totalLength = UPDATE_HEADER_SIZE + args.entries.length * ORACLE_ENTRY_SIZE;
+    const buffer = new ArrayBuffer(totalLength);
+    const view = new DataView(buffer);
+    // Header (18 bytes) with opcode REBASE = 3
+    view.setUint32(0, OracleInstruction.REBASE, true); // uint32 = 3
+    view.setUint16(4, args.oracleAccountIdx, true); // uint16
+    view.setUint32(6, args.regimeId, true); // uint32
+    view.setUint32(10, args.timestamp, true); // uint32
+    view.setUint32(14, args.entries.length, true); // uint32
+    // Entries (28 bytes each)
+    let offset = UPDATE_HEADER_SIZE;
+    for (const entry of args.entries) {
+        view.setUint32(offset, entry.symbolId, true);
+        view.setBigUint64(offset + 4, entry.priceQ64Hi, true);
+        view.setBigUint64(offset + 12, entry.priceQ64Lo, true);
+        view.setUint32(offset + 20, entry.volatilityBps, true);
+        view.setUint32(offset + 24, entry.timestamp, true);
+        offset += ORACLE_ENTRY_SIZE;
+    }
+    return new Uint8Array(buffer);
+}
 //# sourceMappingURL=encoder.js.map
 // === Module: guards.js ===
 /**
@@ -369,7 +434,7 @@ export function isFutureSkew(timestamp, nowSec, maxSkewSec = MAX_FUTURE_SKEW_SEC
     return timestamp > current + maxSkewSec;
 }
 /**
- * Evaluates an asset against institutional risk policies:
+ * Evaluates an asset against risk policies:
  * 1. Circuit breaker gate
  * 2. Feed staleness gate (max 120s)
  * 3. Future clock skew gate (max 30s)

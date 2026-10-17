@@ -90,6 +90,6 @@ int main() {
     q64_t ln_one = q64_ln(Q64_ONE);
     assert(q64_abs(ln_one) < 1000); /* ~0 */
 
-    printf("[SUCCESS] All thru_math Q64.64 unit tests passed successfully!\n");
+    printf("test_thru_math: all tests passed\n");
     return 0;
 }

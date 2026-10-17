@@ -1,15 +1,13 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
+	"bufio"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
-	"math"
-	"math/big"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -18,140 +16,6 @@ import (
 	"syscall"
 	"time"
 )
-
-var knownSymbols = map[string]uint32{
-	"BTCUSDT":   1,
-	"ETHUSDT":   2,
-	"SOLUSDT":   3,
-	"APTUSDT":   4,
-	"SUIUSDT":   5,
-	"BNBUSDT":   6,
-	"DOGEUSDT":  7,
-	"XRPUSDT":   8,
-	"AVAXUSDT":  9,
-	"LINKUSDT":  10,
-	"NEARUSDT":  11,
-	"ARBUSDT":   12,
-	"OPUSDT":    13,
-	"TIAUSDT":   14,
-	"INJUSDT":   15,
-	"SEIUSDT":   16,
-	"SUSDT":     17,
-	"UNIUSDT":   18,
-	"AAVEUSDT":  19,
-	"TAOUSDT":   20,
-	"PEPEUSDT":  21,
-	"SHIBUSDT":  22,
-	"WIFUSDT":   23,
-	"BONKUSDT":  24,
-	"RENDERUSDT": 25,
-	"FETUSDT":   26,
-	"FTMUSDT":   27,
-	"KASUSDT":   28,
-	"STXUSDT":   29,
-	"FILUSDT":   30,
-	"LTCUSDT":   31,
-	"BCHUSDT":   32,
-}
-
-type MarketRecord struct {
-	Timestamp float64 `json:"timestamp"`
-	Symbol    string  `json:"symbol"`
-	Price     float64 `json:"price"`
-}
-
-type MarketRegime struct {
-	Timestamp string  `json:"timestamp"`
-	Regime    string  `json:"regime"`
-	Confidence float64 `json:"confidence"`
-}
-
-type OracleEntry struct {
-	SymbolID      uint32
-	PriceQ64Hi    uint64
-	PriceQ64Lo    uint64
-	VolatilityBps uint32
-	Timestamp     uint32
-}
-
-func floatToQ64(f float64) (hi uint64, lo uint64) {
-	scale := new(big.Int).Lsh(big.NewInt(1), 64)
-	val := new(big.Float).Mul(big.NewFloat(f), new(big.Float).SetInt(scale))
-	intVal, _ := val.Int(nil)
-
-	loMask := new(big.Int).SetUint64(0xFFFFFFFFFFFFFFFF)
-	loBig := new(big.Int).And(intVal, loMask)
-	hiBig := new(big.Int).Rsh(intVal, 64)
-
-	return hiBig.Uint64(), loBig.Uint64()
-}
-
-func q64ToFloat(hi uint64, lo uint64) float64 {
-	hiBig := new(big.Int).Lsh(new(big.Int).SetUint64(hi), 64)
-	loBig := new(big.Int).SetUint64(lo)
-	full := new(big.Int).Or(hiBig, loBig)
-
-	scale := new(big.Float).SetInt(new(big.Int).Lsh(big.NewInt(1), 64))
-	fVal := new(big.Float).Quo(new(big.Float).SetInt(full), scale)
-	res, _ := fVal.Float64()
-	return res
-}
-
-func parseRegimeID(regime string) uint32 {
-	regime = strings.ToUpper(strings.TrimSpace(regime))
-	switch {
-	case strings.Contains(regime, "TRENDING UP"):
-		return 1
-	case strings.Contains(regime, "TRENDING DOWN"):
-		return 2
-	case strings.Contains(regime, "VOLATILITY") || strings.Contains(regime, "SPIKE"):
-		return 3
-	default:
-		return 0 // Neutral / Ranging
-	}
-}
-
-type QuoteData struct {
-	Price         float64
-	SourceTime    uint32
-	VolatilityBps uint32
-}
-
-func calculateRollingVolatilityBps(prices []float64) uint32 {
-	if len(prices) < 10 {
-		return 0 // Insufficient sample horizon
-	}
-
-	var logReturns []float64
-	var sum float64
-	for i := 1; i < len(prices); i++ {
-		if prices[i-1] <= 0 || prices[i] <= 0 {
-			continue
-		}
-		r := math.Log(prices[i] / prices[i-1])
-		logReturns = append(logReturns, r)
-		sum += r
-	}
-
-	n := float64(len(logReturns))
-	if n < 9 {
-		return 0
-	}
-	mean := sum / n
-
-	var varianceSum float64
-	for _, r := range logReturns {
-		diff := r - mean
-		varianceSum += diff * diff
-	}
-
-	stdDev := math.Sqrt(varianceSum / (n - 1))
-	bps := stdDev * 10000.0
-	if bps > 10000.0 {
-		bps = 10000.0
-	}
-	return uint32(bps)
-}
 
 func readLocalMarketData(dataPath string) (map[string]QuoteData, uint32, error) {
 	historyPath := filepath.Join(dataPath, "market_history.json")
@@ -187,18 +51,18 @@ func readLocalMarketData(dataPath string) (map[string]QuoteData, uint32, error) 
 
 	resultQuotes := make(map[string]QuoteData)
 	for sym, rec := range latestRecords {
-		// Freshness check: reject stale records
-		if rec.Timestamp > 0 && (nowSec - rec.Timestamp) > maxStaleAge {
-			log.Printf("[THRU:FEEDER:WARN] Quote %s is stale (age: %.1fs > %.0fs) - skipping", sym, nowSec-rec.Timestamp, maxStaleAge)
+		if rec.Timestamp > 0 && (nowSec-rec.Timestamp) > maxStaleAge {
+			log.Printf("feeder: quote %s is stale (%.1fs > %.0fs), skipping", sym, nowSec-rec.Timestamp, maxStaleAge)
+			continue
+		}
+
+		sourceTs := uint32(rec.Timestamp)
+		if sourceTs == 0 {
+			log.Printf("feeder: quote %s missing timestamp, dropping", sym)
 			continue
 		}
 
 		volBps := calculateRollingVolatilityBps(symbolHistory[sym])
-		sourceTs := uint32(rec.Timestamp)
-		if sourceTs == 0 {
-			sourceTs = uint32(nowSec)
-		}
-
 		resultQuotes[sym] = QuoteData{
 			Price:         rec.Price,
 			SourceTime:    sourceTs,
@@ -218,59 +82,15 @@ func readLocalMarketData(dataPath string) (map[string]QuoteData, uint32, error) 
 	return resultQuotes, regimeID, nil
 }
 
-func buildOracleUpdatePayload(accountIdx uint16, regimeID uint32, quotes map[string]QuoteData) ([]byte, []OracleEntry) {
-	buf := new(bytes.Buffer)
-	maxSourceTime := uint32(0)
-
-	var entries []OracleEntry
-	for sym, symID := range knownSymbols {
-		if q, ok := quotes[sym]; ok && q.Price > 0 {
-			hi, lo := floatToQ64(q.Price)
-			if q.SourceTime > maxSourceTime {
-				maxSourceTime = q.SourceTime
-			}
-			entries = append(entries, OracleEntry{
-				SymbolID:      symID,
-				PriceQ64Hi:    hi,
-				PriceQ64Lo:    lo,
-				VolatilityBps: q.VolatilityBps,
-				Timestamp:     q.SourceTime,
-			})
-		}
-		if len(entries) >= 32 {
-			break
-		}
+func confirmOperatorAction(prompt string) bool {
+	fmt.Printf("%s [y/N]: ", prompt)
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false
 	}
-
-	if maxSourceTime == 0 {
-		maxSourceTime = uint32(time.Now().Unix())
-	}
-
-	// Header: instruction_type (u32=1), oracle_account_idx (u16), regime_id (u32), timestamp (u32), entry_count (u32)
-	binary.Write(buf, binary.LittleEndian, uint32(1))
-	binary.Write(buf, binary.LittleEndian, accountIdx)
-	binary.Write(buf, binary.LittleEndian, regimeID)
-	binary.Write(buf, binary.LittleEndian, maxSourceTime)
-	binary.Write(buf, binary.LittleEndian, uint32(len(entries)))
-
-	// Body: oracle_entry entries
-	for _, e := range entries {
-		binary.Write(buf, binary.LittleEndian, e.SymbolID)
-		binary.Write(buf, binary.LittleEndian, e.PriceQ64Hi)
-		binary.Write(buf, binary.LittleEndian, e.PriceQ64Lo)
-		binary.Write(buf, binary.LittleEndian, e.VolatilityBps)
-		binary.Write(buf, binary.LittleEndian, e.Timestamp)
-	}
-
-	return buf.Bytes(), entries
-}
-
-func buildOracleResumePayload(accountIdx uint16) []byte {
-	buf := new(bytes.Buffer)
-	// Header: instruction_type (u32 = 2, ORACLE_INSTR_RESUME), oracle_account_idx (u16)
-	binary.Write(buf, binary.LittleEndian, uint32(2))
-	binary.Write(buf, binary.LittleEndian, accountIdx)
-	return buf.Bytes()
+	response = strings.ToLower(strings.TrimSpace(response))
+	return response == "y" || response == "yes"
 }
 
 func main() {
@@ -282,6 +102,11 @@ func main() {
 	interval := flag.Duration("interval", 10*time.Second, "Update interval")
 	dryRun := flag.Bool("dry-run", false, "Dry run mode (parse and print without submitting to Thru)")
 	resumeMode := flag.Bool("resume", false, "Submit authorized resume instruction to reset circuit breaker (ORACLE_INSTR_RESUME)")
+	rebaseMode := flag.Bool("rebase", false, "Submit authorized rebase instruction to reset circuit breaker with new baseline (ORACLE_INSTR_REBASE)")
+	autoConfirm := flag.Bool("yes", false, "Automatically confirm operator prompt without interactive prompt")
+	flag.BoolVar(autoConfirm, "y", false, "Alias for --yes")
+	auditLogPath := flag.String("audit-log", "feeder_audit.log", "Path to append-only operator audit log")
+	accountIdx := flag.Uint("account-idx", 2, "Oracle account index in txn accounts array")
 	programPubkey := flag.String("program", "", "Target Market Oracle program public key")
 	oracleAccount := flag.String("account", "", "Target Oracle storage account address")
 	feePayer := flag.String("fee-payer", "0xhansen", "Fee payer key name from config")
@@ -289,23 +114,33 @@ func main() {
 	flag.Parse()
 
 	if *resumeMode {
-		log.Printf("[THRU:FEEDER:OPERATOR] Initiating Circuit Breaker Resume Protocol...")
-		log.Printf("[THRU:FEEDER:OPERATOR] Target Program: %s | Account: %s | Authority Signer: %s", *programPubkey, *oracleAccount, *feePayer)
+		log.Printf("feeder: executing resume (opcode 2)")
+		log.Printf("feeder: program=%s account=%s fee_payer=%s", *programPubkey, *oracleAccount, *feePayer)
 
-		payload := buildOracleResumePayload(2)
+		payload := buildOracleResumePayload(uint16(*accountIdx))
 		hexPayload := hex.EncodeToString(payload)
-		log.Printf("[THRU:FEEDER:OPERATOR] Resume Payload (6B): %s", hexPayload)
+		log.Printf("feeder: resume payload (%d B): %s", len(payload), hexPayload)
 
 		if *dryRun {
-			log.Printf("[THRU:FEEDER:DRY_RUN] Resume instruction ready. Skipping on-chain submission.")
+			log.Printf("feeder: dry-run, skipping on-chain resume")
 			return
 		}
 
 		if *programPubkey == "" || *oracleAccount == "" {
-			log.Fatalf("[THRU:FEEDER:ERROR] --program and --account must be specified to execute resume")
+			log.Fatalf("feeder: --program and --account required to execute resume")
 		}
 
-		cmd := exec.Command("thru", "txn", "execute", *programPubkey, hexPayload,
+		if !*autoConfirm {
+			if !confirmOperatorAction("Confirm on-chain RESUME execution?") {
+				log.Println("feeder: aborted by operator")
+				return
+			}
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "thru", "txn", "execute", *programPubkey, hexPayload,
 			"--readwrite-accounts", *oracleAccount,
 			"--fee-payer", *feePayer,
 			"--state-units", "10",
@@ -313,71 +148,172 @@ func main() {
 			"--compute-units", "100000",
 			"--fee", "0")
 		out, err := cmd.CombinedOutput()
+		status := "SUCCESS"
 		if err != nil {
-			log.Fatalf("[THRU:FEEDER:RESUME_FAIL] %v: %s", err, string(out))
+			status = "FAILED"
 		}
-		log.Printf("[THRU:FEEDER:RESUME_SUCCESS] Circuit breaker reset committed on-chain:\n%s", strings.TrimSpace(string(out)))
+		_ = recordOperatorAudit(*auditLogPath, "RESUME", *feePayer, *programPubkey, *oracleAccount, hexPayload, status, string(out))
+
+		if err != nil {
+			log.Fatalf("feeder: resume failed: %v: %s", err, string(out))
+		}
+		log.Printf("feeder: resume confirmed on-chain:\n%s", strings.TrimSpace(string(out)))
 		return
 	}
 
-	log.Printf("[THRU:FEEDER] Initializing Market Data Pipeline with Timestamp Provenance: %s", *dataPath)
-	log.Printf("[THRU:FEEDER] Target Program: %s | Oracle Account: %s | Signer: %s", *programPubkey, *oracleAccount, *feePayer)
+	if *rebaseMode {
+		log.Printf("feeder: executing rebase (opcode 3)")
+		log.Printf("feeder: program=%s account=%s fee_payer=%s", *programPubkey, *oracleAccount, *feePayer)
+
+		prices, regimeID, err := readLocalMarketData(*dataPath)
+		if err != nil {
+			log.Fatalf("feeder: failed reading market data: %v", err)
+		}
+
+		payload, entries := buildOracleRebasePayload(uint16(*accountIdx), regimeID, prices, nil)
+		if len(entries) == 0 {
+			log.Fatalf("feeder: no valid quotes available for rebase")
+		}
+
+		hexPayload := hex.EncodeToString(payload)
+		log.Printf("feeder: rebase payload (%d bytes, %d quotes)", len(payload), len(entries))
+
+		for _, e := range entries {
+			flt := q64ToFloat(e.PriceQ64Hi, e.PriceQ64Lo)
+			var symName string
+			for k, v := range knownSymbols {
+				if v == e.SymbolID {
+					symName = k
+					break
+				}
+			}
+			log.Printf("  baseline %-8s : $%.4f (vol: %d bps)", symName, flt, e.VolatilityBps)
+		}
+
+		if *dryRun {
+			log.Printf("feeder: dry-run, skipping on-chain rebase")
+			return
+		}
+
+		if *programPubkey == "" || *oracleAccount == "" {
+			log.Fatalf("feeder: --program and --account required to execute rebase")
+		}
+
+		if !*autoConfirm {
+			if !confirmOperatorAction("Confirm on-chain REBASE execution with above baselines?") {
+				log.Println("feeder: aborted by operator")
+				return
+			}
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "thru", "txn", "execute", *programPubkey, hexPayload,
+			"--readwrite-accounts", *oracleAccount,
+			"--fee-payer", *feePayer,
+			"--state-units", "10",
+			"--memory-units", "5000",
+			"--compute-units", "100000",
+			"--fee", "0")
+		out, err := cmd.CombinedOutput()
+		status := "SUCCESS"
+		if err != nil {
+			status = "FAILED"
+		}
+		_ = recordOperatorAudit(*auditLogPath, "REBASE", *feePayer, *programPubkey, *oracleAccount, hexPayload, status, string(out))
+
+		if err != nil {
+			log.Fatalf("feeder: rebase failed: %v: %s", err, string(out))
+		}
+		log.Printf("feeder: rebase confirmed on-chain:\n%s", strings.TrimSpace(string(out)))
+		return
+	}
+
+	log.Printf("feeder: reading market data from %s", *dataPath)
+	log.Printf("feeder: program=%s account=%s fee_payer=%s", *programPubkey, *oracleAccount, *feePayer)
 
 	// Graceful shutdown on SIGINT/SIGTERM
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
-		log.Println("[THRU:FEEDER] Shutdown signal received. Exiting gracefully.")
+		log.Println("feeder: shutting down")
 		os.Exit(0)
 	}()
 
 	sequenceNum := uint64(0)
+	lastPublishedTs := make(map[uint32]uint32)
+	feederState := StateRunning
 
 	for {
 		sequenceNum++
+
+		if feederState == StateHold {
+			log.Printf("feeder: in HOLD state (seq=%d), waiting for operator --rebase or --resume", sequenceNum)
+			if *once {
+				break
+			}
+			time.Sleep(*interval)
+			continue
+		}
+
 		prices, regimeID, err := readLocalMarketData(*dataPath)
 		if err != nil {
-			log.Printf("[THRU:FEEDER:ERROR] seq=%d err=%v", sequenceNum, err)
+			log.Printf("feeder: seq=%d read error: %v", sequenceNum, err)
 		} else {
-			payload, entries := buildOracleUpdatePayload(2, regimeID, prices)
-			hexPayload := hex.EncodeToString(payload)
+			payload, entries := buildOracleUpdatePayload(uint16(*accountIdx), regimeID, prices, lastPublishedTs)
+			if len(entries) == 0 {
+				log.Printf("feeder: seq=%d no valid quotes, skipping batch", sequenceNum)
+			} else {
+				hexPayload := hex.EncodeToString(payload)
 
-			log.Printf("[THRU:FEEDER:FRAME] seq=%d quotes=%d regime_id=%d payload_bytes=%d",
-				sequenceNum, len(entries), regimeID, len(payload))
+				log.Printf("feeder: seq=%d quotes=%d regime=%d payload_bytes=%d",
+					sequenceNum, len(entries), regimeID, len(payload))
 
-			for _, e := range entries {
-				flt := q64ToFloat(e.PriceQ64Hi, e.PriceQ64Lo)
-				var symName string
-				for k, v := range knownSymbols {
-					if v == e.SymbolID {
-						symName = k
-						break
+				for _, e := range entries {
+					flt := q64ToFloat(e.PriceQ64Hi, e.PriceQ64Lo)
+					var symName string
+					for k, v := range knownSymbols {
+						if v == e.SymbolID {
+							symName = k
+							break
+						}
+					}
+					if e.SymbolID <= 5 || e.SymbolID == 17 {
+						log.Printf("  [%2d] %-8s : $%.4f", e.SymbolID, symName, flt)
 					}
 				}
-				if e.SymbolID <= 5 || e.SymbolID == 17 { // Log major coins
-					log.Printf("  ├─ [%2d] %-8s : $%.4f (Q64: hi=%d lo=%d)", e.SymbolID, symName, flt, e.PriceQ64Hi, e.PriceQ64Lo)
-				}
-			}
 
-			if *dryRun {
-				log.Printf("[THRU:FEEDER:DRY_RUN] Raw instruction hex: %s", hexPayload[:64]+"...")
-			} else if *programPubkey != "" && *oracleAccount != "" {
-				cmd := exec.Command("thru", "txn", "execute", *programPubkey, hexPayload,
-					"--readwrite-accounts", *oracleAccount,
-					"--fee-payer", *feePayer,
-					"--state-units", "10",
-					"--memory-units", "5000",
-					"--compute-units", "100000",
-					"--fee", "0")
-				out, err := cmd.CombinedOutput()
-				if err != nil {
-					log.Printf("[THRU:FEEDER:TX_FAIL] %v: %s", err, string(out))
+				if *dryRun {
+					log.Printf("feeder: dry-run hex: %s...", hexPayload[:min(64, len(hexPayload))])
+				} else if *programPubkey != "" && *oracleAccount != "" {
+					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+					cmd := exec.CommandContext(ctx, "thru", "txn", "execute", *programPubkey, hexPayload,
+						"--readwrite-accounts", *oracleAccount,
+						"--fee-payer", *feePayer,
+						"--state-units", "10",
+						"--memory-units", "5000",
+						"--compute-units", "100000",
+						"--fee", "0")
+					out, err := cmd.CombinedOutput()
+					cancel()
+
+					resultType := ClassifyTxOutput(string(out), err)
+					switch resultType {
+					case TxResultSuccess:
+						log.Printf("feeder: tx confirmed:\n%s", strings.TrimSpace(string(out)))
+					case TxResultTripped:
+						feederState = StateHold
+						log.Printf("feeder: circuit breaker tripped on-chain: %s", strings.TrimSpace(string(out)))
+						log.Printf("feeder: state changed RUNNING -> HOLD, updates paused")
+						_ = recordOperatorAudit(*auditLogPath, "TRIPPED_HOLD", *feePayer, *programPubkey, *oracleAccount, hexPayload, "HOLD", string(out))
+					default:
+						log.Printf("feeder: tx failed (%s): %v: %s", resultType, err, string(out))
+					}
 				} else {
-					log.Printf("[THRU:FEEDER:TX_SUCCESS] On-chain update committed:\n%s", strings.TrimSpace(string(out)))
+					log.Printf("feeder: verified payload (%d bytes), no on-chain target set", len(payload))
 				}
-			} else {
-				log.Printf("[THRU:FEEDER:STANDBY] No on-chain target set; verified payload integrity (%d bytes)", len(payload))
 			}
 		}
 
