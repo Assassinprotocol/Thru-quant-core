@@ -66,10 +66,10 @@ func TestParseRegimeID(t *testing.T) {
 }
 
 func TestCalculateRollingVolatilityBps(t *testing.T) {
-	// Sample horizon < 10 returns 0
+	// Sample horizon < 10 returns VolatilityUnknown sentinel
 	shortSeries := []float64{100, 101, 102}
-	if v := calculateRollingVolatilityBps(shortSeries); v != 0 {
-		t.Fatalf("expected 0 for < 10 items, got %d", v)
+	if v := calculateRollingVolatilityBps(shortSeries); v != VolatilityUnknown {
+		t.Fatalf("expected VolatilityUnknown (0xFFFFFFFF) for < 10 items, got %d", v)
 	}
 
 	// Constant price returns 0 bps

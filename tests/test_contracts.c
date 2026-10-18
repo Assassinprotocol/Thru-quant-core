@@ -278,6 +278,150 @@ static void test_oracle_lifecycle_and_breaker(void) {
     assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
     assert(data->circuit_breaker_active == 0);
     printf("  [✓] 7. Authorized resume reset circuit breaker (breaker=0)\n");
+
+    /* 8. Non-tripped REBASE Rejection (0x200B) */
+    g_has_reverted = false;
+    g_has_returned = false;
+    hdr->instruction_type = ORACLE_INSTR_REBASE;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(update_buf, sizeof(update_buf));
+    }
+    assert(g_has_reverted && g_last_revert_code == ORACLE_ERR_NOT_TRIPPED);
+    printf("  [✓] 8. REBASE on non-tripped oracle safely rejected with 0x200B\n");
+
+    /* 9. REBASE Instruction (Opcode 3) Resets Baseline and Clears Breaker */
+    data->circuit_breaker_active = 1;
+    hdr->instruction_type = ORACLE_INSTR_REBASE;
+    hdr->timestamp = 1791880020;
+    entry[0].timestamp = 1791880020;
+    q64_t btc_rebase = q64_from_int(95000);
+    entry[0].price_q64_hi = (uint64_t)(btc_rebase >> 64);
+    entry[0].price_q64_lo = (uint64_t)btc_rebase;
+    entry[0].volatility_bps = 250;
+
+    g_has_reverted = false;
+    g_has_returned = false;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(update_buf, sizeof(update_buf));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+    assert(data->circuit_breaker_active == 0);
+    assert(data->entries[0].price_q64_hi == (uint64_t)(btc_rebase >> 64));
+    printf("  [✓] 9. REBASE instruction (opcode 3) reset baseline and cleared breaker cleanly\n");
+
+    /* 10. Duplicate Symbol Rejection (0x2006) */
+    uint8_t dup_buf[sizeof(oracle_update_hdr_t) + 2 * sizeof(oracle_entry_t)];
+    oracle_update_hdr_t *dup_hdr = (oracle_update_hdr_t *)dup_buf;
+    oracle_entry_t *dup_entries = (oracle_entry_t *)(dup_buf + sizeof(oracle_update_hdr_t));
+    dup_hdr->instruction_type = ORACLE_INSTR_UPDATE_PRICES;
+    dup_hdr->oracle_account_idx = oracle_acc;
+    dup_hdr->regime_id = 1;
+    dup_hdr->timestamp = 1791880025;
+    dup_hdr->entry_count = 2;
+    dup_entries[0] = dup_entries[1] = entry[0];
+    dup_entries[0].timestamp = dup_entries[1].timestamp = 1791880025;
+
+    g_has_reverted = false;
+    g_has_returned = false;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(dup_buf, sizeof(dup_buf));
+    }
+    assert(g_has_reverted && g_last_revert_code == ORACLE_ERR_DUPLICATE_SYMBOL);
+    printf("  [✓] 10. Duplicate symbol rejected with 0x2006\n");
+
+    /* 11. Invalid Entry Count Rejection (0x2004) */
+    dup_hdr->entry_count = 0;
+    g_has_reverted = false;
+    g_has_returned = false;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(dup_buf, sizeof(oracle_update_hdr_t));
+    }
+    assert(g_has_reverted && g_last_revert_code == ORACLE_ERR_INVALID_COUNT);
+
+    dup_hdr->entry_count = 33;
+    g_has_reverted = false;
+    g_has_returned = false;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(dup_buf, sizeof(dup_buf));
+    }
+    assert(g_has_reverted && g_last_revert_code == ORACLE_ERR_INVALID_COUNT);
+    printf("  [✓] 11. Invalid entry counts (0 and >32) rejected with 0x2004\n");
+
+    /* 12. Invalid Regime Rejection (0x2007) */
+    hdr->instruction_type = ORACLE_INSTR_UPDATE_PRICES;
+    hdr->regime_id = 99;
+    hdr->entry_count = 1;
+    hdr->timestamp = 1791880030;
+    entry[0].timestamp = 1791880030;
+
+    g_has_reverted = false;
+    g_has_returned = false;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(update_buf, sizeof(update_buf));
+    }
+    assert(g_has_reverted && g_last_revert_code == ORACLE_ERR_INVALID_REGIME);
+    hdr->regime_id = 1;
+    printf("  [✓] 12. Invalid regime ID rejected with 0x2007\n");
+
+    /* 13. Invalid Volatility Bounds Rejection (0x2014) */
+    entry[0].volatility_bps = 10001;
+    g_has_reverted = false;
+    g_has_returned = false;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(update_buf, sizeof(update_buf));
+    }
+    assert(g_has_reverted && g_last_revert_code == ORACLE_ERR_INVALID_VOLATILITY);
+    entry[0].volatility_bps = 120;
+    printf("  [✓] 13. Volatility > 10000 bps rejected with 0x2014\n");
+
+    /* 14. Unknown Instruction Opcode Rejection (0x2002) */
+    hdr->instruction_type = 0x9999;
+    g_has_reverted = false;
+    g_has_returned = false;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(update_buf, sizeof(update_buf));
+    }
+    assert(g_has_reverted && g_last_revert_code == ORACLE_ERR_INVALID_INSTR_TYPE);
+    printf("  [✓] 14. Unknown instruction opcode safely rejected with 0x2002\n");
+
+    /* 15. Unauthorized Update Attempt */
+    hdr->instruction_type = ORACLE_INSTR_UPDATE_PRICES;
+    memset(g_mock_txn.hdr.v1.fee_payer_pubkey.uc, 0x99, 32);
+    g_has_reverted = false;
+    g_has_returned = false;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(update_buf, sizeof(update_buf));
+    }
+    assert(g_has_reverted && g_last_revert_code == ORACLE_ERR_UNAUTHORIZED);
+    memset(g_mock_txn.hdr.v1.fee_payer_pubkey.uc, 0x42, 32); // Restore
+    printf("  [✓] 15. Unauthorized quote update safely rejected with 0x2003\n");
+
+    /* 16. Truncated Header and Entry Size Rejection */
+    g_has_reverted = false;
+    g_has_returned = false;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(update_buf, 2); // < 4 bytes
+    }
+    assert(g_has_reverted && g_last_revert_code == ORACLE_ERR_INVALID_INSTR_SIZE);
+
+    g_has_reverted = false;
+    g_has_returned = false;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        oracle_contract_start(update_buf, sizeof(oracle_update_hdr_t)); // Missing entry bytes
+    }
+    assert(g_has_reverted && g_last_revert_code == ORACLE_ERR_INVALID_INSTR_SIZE);
+    printf("  [✓] 16. Truncated instruction and entry payloads safely rejected with 0x2001\n");
 }
 
 static void test_clob_lifecycle_and_invariants(void) {
@@ -444,11 +588,235 @@ static void test_clob_lifecycle_and_invariants(void) {
     }
     assert(g_has_reverted && g_last_revert_code == CLOB_ERR_TRADER_LIMIT);
     printf("  [✓] 8. Anti-DoS: Trader exceeded max 8 open orders rejected (0x300C)\n");
+
+    /* 9. Resting ASK Placement and Order Sorting */
+    g_has_reverted = false;
+    g_has_returned = false;
+    memset(g_mock_txn.hdr.v1.fee_payer_pubkey.uc, 0x42, 32);
+    q64_t p_ask1 = q64_from_int(2600);
+    place_args.side = CLOB_SIDE_ASK;
+    place_args.price_hi = (uint64_t)(p_ask1 >> 64);
+    place_args.price_lo = (uint64_t)p_ask1;
+    place_args.qty = 5;
+
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+    assert(state->ask_count == 1);
+    assert(state->best_ask_idx != -1);
+    assert(state->asks[state->best_ask_idx].qty == 5);
+    uint64_t resting_ask_id = state->asks[state->best_ask_idx].order_id;
+    printf("  [✓] 9. Resting ASK placed into sorted list (5 ETH @ $2600)\n");
+
+    /* 10. Crossing BID against resting ASK (Quantity Conservation) */
+    g_has_reverted = false;
+    g_has_returned = false;
+    memset(g_mock_txn.hdr.v1.fee_payer_pubkey.uc, 0x43, 32);
+    place_args.side = CLOB_SIDE_BID;
+    place_args.price_hi = (uint64_t)(p_ask1 >> 64);
+    place_args.price_lo = (uint64_t)p_ask1;
+    place_args.qty = 2; // Match 2, leaving 3 resting ASK
+
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+    assert(state->asks[state->best_ask_idx].qty == 3);
+    printf("  [✓] 10. Crossing BID matched resting ASK: 2 filled, 3 resting remaining\n");
+
+    /* 11. ASK Cancellation Authority */
+    g_has_reverted = false;
+    g_has_returned = false;
+    cancel_args.instruction_type = CLOB_INSTR_CANCEL;
+    cancel_args.clob_account_idx = clob_acc;
+    cancel_args.order_id = resting_ask_id;
+
+    // Unauthorized cancel
+    memset(g_mock_txn.hdr.v1.fee_payer_pubkey.uc, 0x88, 32);
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&cancel_args, sizeof(cancel_args));
+    }
+    assert(g_has_reverted && g_last_revert_code == CLOB_ERR_UNAUTHORIZED);
+    assert(state->asks[state->best_ask_idx].qty == 3);
+
+    // Authorized cancel
+    g_has_reverted = false;
+    g_has_returned = false;
+    memset(g_mock_txn.hdr.v1.fee_payer_pubkey.uc, 0x42, 32);
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&cancel_args, sizeof(cancel_args));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+    assert(state->ask_count == 0);
+    assert(state->best_ask_idx == -1);
+    printf("  [✓] 11. Authorized ASK cancel removed node from orderbook\n");
+
+    /* 12. Trader Open Order Cap on ASK side */
+    memset(g_mock_txn.hdr.v1.fee_payer_pubkey.uc, 0x77, 32);
+    for (int i = 0; i < 8; i++) {
+        g_has_reverted = false;
+        g_has_returned = false;
+        place_args.side = CLOB_SIDE_ASK;
+        q64_t p = q64_from_int(2700 + i * 10);
+        place_args.price_hi = (uint64_t)(p >> 64);
+        place_args.price_lo = (uint64_t)p;
+        place_args.qty = 1;
+        jmp_rc = setjmp(g_test_jmp);
+        if (jmp_rc == 0) {
+            clob_contract_start(&place_args, sizeof(place_args));
+        }
+        assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+    }
+    assert(state->ask_count == 8);
+
+    /* 9th ASK from same trader must revert */
+    g_has_reverted = false;
+    g_has_returned = false;
+    q64_t p_ask_over = q64_from_int(2800);
+    place_args.price_hi = (uint64_t)(p_ask_over >> 64);
+    place_args.price_lo = (uint64_t)p_ask_over;
+    place_args.qty = 1;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_reverted && g_last_revert_code == CLOB_ERR_TRADER_LIMIT);
+    printf("  [✓] 12. Anti-DoS: Trader exceeded max 8 open ASK orders rejected (0x300C)\n");
+
+    /* 13. Invalid Quantity and Unknown Opcode Rejection */
+    g_has_reverted = false;
+    g_has_returned = false;
+    place_args.qty = 0;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_reverted && g_last_revert_code == CLOB_ERR_INVALID_QTY);
+
+    g_has_reverted = false;
+    g_has_returned = false;
+    place_args.qty = 5;
+    place_args.instruction_type = 0x9999;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_reverted && g_last_revert_code == CLOB_ERR_INVALID_INSTR_TYPE);
+    place_args.instruction_type = CLOB_INSTR_PLACE_LIMIT;
+    printf("  [✓] 13. Rejected zero quantity and unknown instruction opcode\n");
+
+    /* 14. Nonexistent Order Cancellation */
+    g_has_reverted = false;
+    g_has_returned = false;
+    cancel_args.instruction_type = CLOB_INSTR_CANCEL;
+    cancel_args.clob_account_idx = clob_acc;
+    cancel_args.order_id = 999999UL;
+    memset(g_mock_txn.hdr.v1.fee_payer_pubkey.uc, 0x42, 32);
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&cancel_args, sizeof(cancel_args));
+    }
+    assert(g_has_reverted && g_last_revert_code == CLOB_ERR_ORDER_NOT_FOUND);
+    printf("  [✓] 14. Nonexistent order cancellation rejected with 0x3005\n");
+
+    /* 15. Complete Order Consumption & Double-Sided Best Insertion */
+    reset_mock_env();
+    memset(&init_args, 0, sizeof(init_args));
+    init_args.instruction_type = CLOB_INSTR_INIT;
+    init_args.clob_account_idx = clob_acc;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&init_args, sizeof(init_args));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+
+    // Place resting ASK 10 @ 2500
+    memset(&place_args, 0, sizeof(place_args));
+    place_args.instruction_type = CLOB_INSTR_PLACE_LIMIT;
+    place_args.clob_account_idx = clob_acc;
+    place_args.side = CLOB_SIDE_ASK;
+    q64_t p2500_ask = q64_from_int(2500);
+    place_args.price_hi = (uint64_t)(p2500_ask >> 64);
+    place_args.price_lo = (uint64_t)p2500_ask;
+    place_args.qty = 10;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+
+    // Place lower resting ASK 5 @ 2400 (new best ask, prev == -1)
+    q64_t p2400_ask = q64_from_int(2400);
+    place_args.price_hi = (uint64_t)(p2400_ask >> 64);
+    place_args.price_lo = (uint64_t)p2400_ask;
+    place_args.qty = 5;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+    assert(state->ask_count == 2);
+
+    // Crossing BID 15 @ 2500 consumes both ASKs completely
+    place_args.side = CLOB_SIDE_BID;
+    place_args.price_hi = (uint64_t)(p2500_ask >> 64);
+    place_args.price_lo = (uint64_t)p2500_ask;
+    place_args.qty = 15;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+    assert(state->ask_count == 0);
+    assert(state->best_ask_idx == -1);
+
+    // Place resting BID 10 @ 2000
+    place_args.side = CLOB_SIDE_BID;
+    q64_t p2000_bid = q64_from_int(2000);
+    place_args.price_hi = (uint64_t)(p2000_bid >> 64);
+    place_args.price_lo = (uint64_t)p2000_bid;
+    place_args.qty = 10;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+
+    // Place higher resting BID 5 @ 2100 (new best bid, prev == -1)
+    q64_t p2100_bid = q64_from_int(2100);
+    place_args.price_hi = (uint64_t)(p2100_bid >> 64);
+    place_args.price_lo = (uint64_t)p2100_bid;
+    place_args.qty = 5;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+    assert(state->bid_count == 2);
+
+    // Crossing ASK 15 @ 2000 consumes both BIDs completely
+    place_args.side = CLOB_SIDE_ASK;
+    place_args.price_hi = (uint64_t)(p2000_bid >> 64);
+    place_args.price_lo = (uint64_t)p2000_bid;
+    place_args.qty = 15;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+    assert(state->bid_count == 0);
+    assert(state->best_bid_idx == -1);
+    printf("  [✓] 15. Verified complete order consumption & best-price insertion on both sides\n");
 }
 
 int main(void) {
     test_oracle_lifecycle_and_breaker();
     test_clob_lifecycle_and_invariants();
-    printf("test_contracts: all 15 scenarios passed\n");
+    printf("test_contracts: all scenarios passed\n");
     return 0;
 }

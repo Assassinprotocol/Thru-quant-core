@@ -131,6 +131,9 @@ static void process_update(void const *instruction_data, ulong instruction_data_
         oracle_entry_t const *e = &incoming[i];
         if (e->symbol_id == 0) tsdk_revert(ORACLE_ERR_INVALID_SYMBOL);
         if ((e->price_q64_hi == 0 && e->price_q64_lo == 0) || (e->price_q64_hi >> 63) != 0) tsdk_revert(ORACLE_ERR_INVALID_PRICE);
+        if (e->volatility_bps != ORACLE_VOLATILITY_UNKNOWN && e->volatility_bps > MAX_ALLOWED_VOLATILITY_BPS) {
+            tsdk_revert(ORACLE_ERR_INVALID_VOLATILITY);
+        }
         if (e->timestamp > hdr->timestamp || (hdr->timestamp - e->timestamp) > MAX_QUOTE_AGE_SECONDS) tsdk_revert(ORACLE_ERR_ENTRY_TIMESTAMP);
         if (e->timestamp > max_ts) max_ts = e->timestamp;
         for (uint32_t j = i + 1; j < hdr->entry_count; j++) {

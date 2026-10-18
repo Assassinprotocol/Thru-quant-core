@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+build
+tests
+sdk/node_modules
+examples/**/node_modules
+*.gcda
+*.gcno
+*.gcov
+*.bin
+*.elf
+*.log
+data/*.json

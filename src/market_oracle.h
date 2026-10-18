@@ -30,9 +30,12 @@
 #define ORACLE_ERR_NOT_TRIPPED          (0x2011UL)
 #define ORACLE_ERR_INVALID_REGIME       (0x2012UL)
 #define ORACLE_ERR_RESIZE_FAILED        (0x2013UL)
+#define ORACLE_ERR_INVALID_VOLATILITY   (0x2014UL)
 
 #define MAX_ORACLE_SYMBOLS (32)
 #define MAX_ALLOWED_DEVIATION_BPS (500) /* Max 5% delta per single slot update */
+#define MAX_ALLOWED_VOLATILITY_BPS (10000U) /* Max 100% volatility */
+#define ORACLE_VOLATILITY_UNKNOWN (0xFFFFFFFFUL) /* Sentinel for uncomputed volatility */
 #define MAX_QUOTE_AGE_SECONDS (120)     /* Max 2 minutes quote age */
 #define MAX_FUTURE_SKEW_SECONDS (30)    /* Max 30 seconds future timestamp skew */
 

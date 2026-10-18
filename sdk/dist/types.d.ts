@@ -42,6 +42,7 @@ export declare const OracleErrorCode: {
     readonly NOT_TRIPPED: 8209;
     readonly INVALID_REGIME: 8210;
     readonly RESIZE_FAILED: 8211;
+    readonly INVALID_VOLATILITY: 8212;
 };
 export type OracleErrorCode = (typeof OracleErrorCode)[keyof typeof OracleErrorCode];
 /**

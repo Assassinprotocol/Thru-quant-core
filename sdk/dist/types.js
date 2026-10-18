@@ -41,6 +41,7 @@ export const OracleErrorCode = {
     NOT_TRIPPED: 0x2011,
     INVALID_REGIME: 0x2012,
     RESIZE_FAILED: 0x2013,
+    INVALID_VOLATILITY: 0x2014,
 };
 /**
  * Descriptive human-readable explanations for Oracle contract errors
@@ -65,6 +66,7 @@ export const OracleErrorMessages = {
     0x2011: "Circuit breaker is not tripped: cannot resume untripped oracle",
     0x2012: "Invalid market regime ID: must be between 0 and 3",
     0x2013: "Account resize failed during initialization",
+    0x2014: "Invalid volatility: value exceeds 10000 bps (100%) and is not unknown sentinel",
 };
 /**
  * Human-readable mapping of market regimes

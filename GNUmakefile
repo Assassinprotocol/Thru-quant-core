@@ -32,6 +32,11 @@ fuzz-math:
 	./tests/fuzz_math_diff 200000
 	rm -f tests/fuzz_math_diff
 
+fuzz-contracts:
+	gcc -O3 -fsanitize=address,undefined -Iinclude -Isrc tests/fuzz_contracts.c src/thru_math.c -lm -o tests/fuzz_contracts
+	./tests/fuzz_contracts 100000
+	rm -f tests/fuzz_contracts
+
 lint-c:
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc src/market_oracle.c src/clob_engine.c src/thru_math.c
 
@@ -79,8 +84,11 @@ test-sdk:
 run-example:
 	cd examples/quant-agent-consumer && ([ -d node_modules ] || npm install --silent) && node agent.ts --dry-run
 
-all-tests: test test-simulation test-hardening test-math-golden test-math-checked fuzz-math lint-c lint-claims verify-claims test-api test-sdk run-example
+all-tests: test test-simulation test-hardening test-math-golden test-math-checked fuzz-math fuzz-contracts lint-c lint-claims verify-claims coverage test-api test-sdk run-example
+
+coverage:
+	bash scripts/coverage_gate.sh
 
 clean-tests:
-	rm -f tests/test_math tests/test_simulation tests/test_contracts tests/test_bench tests/test_oracle_hardening tests/test_math_golden tests/test_math_checked tests/fuzz_math_diff
+	rm -f tests/test_math tests/test_simulation tests/test_contracts tests/test_bench tests/test_oracle_hardening tests/test_math_golden tests/test_math_checked tests/fuzz_math_diff tests/fuzz_contracts tests/cov_* tests/*.gcda tests/*.gcno src/*.gcda src/*.gcno *.gcov
 

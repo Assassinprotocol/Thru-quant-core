@@ -15,9 +15,11 @@ make test-hardening
 make test-math-golden
 make test-math-checked
 make fuzz-math
+make fuzz-contracts
 make lint-c
 make lint-claims
 make verify-claims
+make coverage
 make test-api
 make build-api
 make build-feeder

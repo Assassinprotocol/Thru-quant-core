@@ -103,6 +103,7 @@ type OracleState struct {
 	Slot                 uint64        `json:"slot"`
 	BlockTimestamp       string        `json:"block_timestamp"`
 	AccountAddress       string        `json:"account_address"`
+	IntegrityWarnings    []string      `json:"integrity_warnings,omitempty"`
 }
 
 // HealthResponse represents system liveness and data health
@@ -149,6 +150,7 @@ type StatusResponse struct {
 	SourceMode           string             `json:"source_mode"`
 	LastUpdateTS         uint32             `json:"last_update_ts"`
 	UptimeSec            int64              `json:"uptime_sec"`
+	IntegrityWarnings    []string           `json:"integrity_warnings,omitempty"`
 	Metrics              OperationalMetrics `json:"operational_metrics"`
 }
 

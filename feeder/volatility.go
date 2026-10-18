@@ -19,9 +19,12 @@ func parseRegimeID(regime string) uint32 {
 	}
 }
 
+// VolatilityUnknown represents uncomputed volatility due to insufficient history (< 10 samples)
+const VolatilityUnknown uint32 = 0xFFFFFFFF
+
 func calculateRollingVolatilityBps(prices []float64) uint32 {
 	if len(prices) < 10 {
-		return 0 // Insufficient sample horizon (< 10 prices)
+		return VolatilityUnknown
 	}
 
 	var logReturns []float64
@@ -37,7 +40,7 @@ func calculateRollingVolatilityBps(prices []float64) uint32 {
 
 	n := float64(len(logReturns))
 	if n < 9 {
-		return 0
+		return VolatilityUnknown
 	}
 	mean := sum / n
 

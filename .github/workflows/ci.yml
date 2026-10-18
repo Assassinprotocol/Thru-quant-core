@@ -7,10 +7,44 @@ on:
     branches: [ "main" ]
 
 jobs:
-  test:
-    name: Build & Verify Test Suite
+  contracts-c:
+    name: C Contracts & Unit Tests (ASan/UBSan)
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
+      - name: Install Build Dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc make
+
+      - name: Run C Unit, Hardening, and Golden Tests
+        run: |
+          make test
+          make test-simulation
+          make test-hardening
+          make test-math-golden
+          make test-math-checked
+          make bench-math
+          make clean-tests
+
+  contract-parser-fuzz:
+    name: Contract Parser & Math Fuzzing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc make
+
+      - name: Run Differential Math and Contract Parser Fuzzers
+        run: |
+          make fuzz-math
+          make fuzz-contracts
+
+  coverage-gate:
+    name: Code Coverage Gate (C & Go >= 85%)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -21,13 +55,64 @@ jobs:
           go-version: '1.22'
           check-latest: false
 
+      - name: Install Build Dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc make gcovr
+
+      - name: Evaluate Coverage Thresholds
+        run: make coverage
+
+  go-backend:
+    name: Go Backend & Quorum Feeder (-race)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          check-latest: false
+
+      - name: Run Go Unit Tests with Race Detector
+        run: go test -v -race ./...
+
+      - name: Build Go Daemons & Run Benchmarks
+        run: |
+          make build-api
+          make build-feeder
+          make bench-api
+
+  typescript-sdk:
+    name: TypeScript SDK & Example Consumer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
+      - name: Build and Test SDK
+        run: |
+          make build-sdk
+          make test-sdk
+          make run-example
+
+  claims-and-lint:
+    name: Claims Linter & C Static Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Install Build Dependencies
         run: sudo apt-get update && sudo apt-get install -y gcc make
 
-      - name: Run Clean Verification & Benchmark Suite
-        run: bash scripts/verify_reproduce.sh
+      - name: Run Linters & Claim Verification
+        run: |
+          make lint-c
+          make lint-claims
+          make verify-claims

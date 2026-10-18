@@ -278,3 +278,120 @@ func TestSSEStreaming(t *testing.T) {
 		t.Errorf("expected event: oracle_state in stream output")
 	}
 }
+
+func TestRateLimiting(t *testing.T) {
+	srv := setupTestServer()
+	// Set small capacity for testing
+	srv.limiter = newRateLimiter(5.0, 10.0)
+
+	mux := http.NewServeMux()
+	srv.RegisterRoutes(mux)
+
+	// Send 5 requests within burst capacity
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest("GET", "/health", nil)
+		req.RemoteAddr = "198.51.100.1:45678"
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("request %d: expected status 200, got %d", i+1, w.Code)
+		}
+	}
+
+	// 6th request must exceed rate limit
+	req6 := httptest.NewRequest("GET", "/health", nil)
+	req6.RemoteAddr = "198.51.100.1:45678"
+	w6 := httptest.NewRecorder()
+	mux.ServeHTTP(w6, req6)
+
+	if w6.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected status 429 Too Many Requests, got %d", w6.Code)
+	}
+	if w6.Header().Get("Retry-After") != "1" {
+		t.Errorf("expected Retry-After header '1', got %s", w6.Header().Get("Retry-After"))
+	}
+
+	// Requests from a different IP should succeed
+	reqOther := httptest.NewRequest("GET", "/health", nil)
+	reqOther.RemoteAddr = "198.51.100.2:45678"
+	wOther := httptest.NewRecorder()
+	mux.ServeHTTP(wOther, reqOther)
+	if wOther.Code != http.StatusOK {
+		t.Fatalf("expected status 200 from different IP, got %d", wOther.Code)
+	}
+
+	// Allow tokens to refill
+	time.Sleep(150 * time.Millisecond)
+	reqRecovered := httptest.NewRequest("GET", "/health", nil)
+	reqRecovered.RemoteAddr = "198.51.100.1:45678"
+	wRecovered := httptest.NewRecorder()
+	mux.ServeHTTP(wRecovered, reqRecovered)
+	if wRecovered.Code != http.StatusOK {
+		t.Fatalf("expected status 200 after token refill, got %d", wRecovered.Code)
+	}
+}
+
+func TestIntegrityWarnings(t *testing.T) {
+	srv := setupTestServer()
+	srv.mu.Lock()
+	nowSec := uint32(time.Now().Unix())
+	srv.state.LastUpdateTS = nowSec - 200 // > 120s stale
+	srv.state.CircuitBreakerActive = true
+	if len(srv.state.Entries) > 0 {
+		srv.state.Entries[0].VolatilityBps = 0xFFFFFFFF
+		srv.state.Entries[0].Timestamp = nowSec - 200
+	}
+	srv.mu.Unlock()
+
+	mux := http.NewServeMux()
+	srv.RegisterRoutes(mux)
+
+	// Verify warnings on /v1/status
+	reqStatus := httptest.NewRequest("GET", "/v1/status", nil)
+	wStatus := httptest.NewRecorder()
+	mux.ServeHTTP(wStatus, reqStatus)
+
+	var statusResp StatusResponse
+	if err := json.Unmarshal(wStatus.Body.Bytes(), &statusResp); err != nil {
+		t.Fatalf("failed decoding status response: %v", err)
+	}
+
+	hasStaleWarning := false
+	hasBreakerWarning := false
+	hasVolWarning := false
+	for _, w := range statusResp.IntegrityWarnings {
+		if strings.Contains(w, "FEED_STALE_EXCEEDED_FAIL_CLOSED_BOUNDARY") {
+			hasStaleWarning = true
+		}
+		if strings.Contains(w, "CIRCUIT_BREAKER_ACTIVE_ON_CHAIN") {
+			hasBreakerWarning = true
+		}
+		if strings.Contains(w, "VOLATILITY_UNCOMPUTED") {
+			hasVolWarning = true
+		}
+	}
+
+	if !hasStaleWarning {
+		t.Errorf("expected FEED_STALE_EXCEEDED_FAIL_CLOSED_BOUNDARY warning in status")
+	}
+	if !hasBreakerWarning {
+		t.Errorf("expected CIRCUIT_BREAKER_ACTIVE_ON_CHAIN warning in status")
+	}
+	if !hasVolWarning {
+		t.Errorf("expected VOLATILITY_UNCOMPUTED warning in status")
+	}
+
+	// Verify warnings on /v1/oracle/latest
+	reqLatest := httptest.NewRequest("GET", "/v1/oracle/latest", nil)
+	wLatest := httptest.NewRecorder()
+	mux.ServeHTTP(wLatest, reqLatest)
+
+	var oracleResp OracleState
+	if err := json.Unmarshal(wLatest.Body.Bytes(), &oracleResp); err != nil {
+		t.Fatalf("failed decoding oracle latest response: %v", err)
+	}
+
+	if len(oracleResp.IntegrityWarnings) == 0 {
+		t.Errorf("expected non-empty IntegrityWarnings on /v1/oracle/latest")
+	}
+}

@@ -3,11 +3,70 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
 )
+
+// visitor tracks token bucket rate limiting state for a client IP
+type visitor struct {
+	tokens   float64
+	lastSeen time.Time
+}
+
+// rateLimiter enforces token-bucket rate limits per client IP
+type rateLimiter struct {
+	mu       sync.Mutex
+	visitors map[string]*visitor
+	capacity float64
+	rate     float64
+}
+
+func newRateLimiter(capacity, rate float64) *rateLimiter {
+	return &rateLimiter{
+		visitors: make(map[string]*visitor),
+		capacity: capacity,
+		rate:     rate,
+	}
+}
+
+func (rl *rateLimiter) allow(ip string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	v, exists := rl.visitors[ip]
+	if !exists {
+		rl.visitors[ip] = &visitor{
+			tokens:   rl.capacity - 1.0,
+			lastSeen: now,
+		}
+		if len(rl.visitors) > 10000 {
+			for k, val := range rl.visitors {
+				if now.Sub(val.lastSeen) > 3*time.Minute {
+					delete(rl.visitors, k)
+				}
+			}
+		}
+		return true
+	}
+
+	elapsed := now.Sub(v.lastSeen).Seconds()
+	v.lastSeen = now
+	v.tokens += elapsed * rl.rate
+	if v.tokens > rl.capacity {
+		v.tokens = rl.capacity
+	}
+
+	if v.tokens >= 1.0 {
+		v.tokens -= 1.0
+		return true
+	}
+
+	return false
+}
 
 // Server coordinates REST endpoints, SSE streams, and cached oracle state
 type Server struct {
@@ -21,6 +80,7 @@ type Server struct {
 	accountAddr              string
 	network                  string
 	staticDir                string
+	limiter                  *rateLimiter
 	requestsTotal            atomic.Uint64
 	rpcFailuresTotal         atomic.Uint64
 	oracleUpdatesTotal       atomic.Uint64
@@ -38,6 +98,7 @@ func NewServer(programAddr, accountAddr, network, staticDir string) *Server {
 		accountAddr: accountAddr,
 		network:     network,
 		staticDir:   staticDir,
+		limiter:     newRateLimiter(100.0, 50.0),
 	}
 }
 
@@ -84,12 +145,12 @@ const MaxSSEClients = 256
 
 // RegisterRoutes registers all REST and SSE endpoints with the given ServeMux
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/health", s.withCORS(s.handleHealth))
-	mux.HandleFunc("/ready", s.withCORS(s.handleReady))
-	mux.HandleFunc("/v1/status", s.withCORS(s.handleStatus))
-	mux.HandleFunc("/v1/oracle/latest", s.withCORS(s.handleOracleLatest))
-	mux.HandleFunc("/v1/oracle/history", s.withCORS(s.handleOracleHistory))
-	mux.HandleFunc("/v1/stream", s.withCORS(s.handleStream))
+	mux.HandleFunc("/health", s.withCORS(s.withRateLimit(s.handleHealth)))
+	mux.HandleFunc("/ready", s.withCORS(s.withRateLimit(s.handleReady)))
+	mux.HandleFunc("/v1/status", s.withCORS(s.withRateLimit(s.handleStatus)))
+	mux.HandleFunc("/v1/oracle/latest", s.withCORS(s.withRateLimit(s.handleOracleLatest)))
+	mux.HandleFunc("/v1/oracle/history", s.withCORS(s.withRateLimit(s.handleOracleHistory)))
+	mux.HandleFunc("/v1/stream", s.withCORS(s.withRateLimit(s.handleStream)))
 	mux.HandleFunc("/metrics", s.handleMetrics)
 
 	if s.staticDir != "" {
@@ -106,6 +167,29 @@ func (s *Server) RecordRPCFailure() {
 // RecordStaleDiscard records a discarded stale quote batch
 func (s *Server) RecordStaleDiscard() {
 	s.staleDiscardsTotal.Add(1)
+}
+
+func (s *Server) withRateLimit(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip := r.Header.Get("X-Forwarded-For")
+		if ip == "" {
+			var err error
+			ip, _, err = net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				ip = r.RemoteAddr
+			}
+		}
+
+		if !s.limiter.allow(ip) {
+			w.Header().Set("Retry-After", "1")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			w.Write([]byte(`{"error":"rate limit exceeded"}`))
+			return
+		}
+
+		next(w, r)
+	}
 }
 
 func (s *Server) withCORS(next http.HandlerFunc) http.HandlerFunc {
@@ -263,6 +347,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		SourceMode:           source,
 		LastUpdateTS:         lastUpdate,
 		UptimeSec:            int64(time.Since(s.startTime).Seconds()),
+		IntegrityWarnings:    computeIntegrityWarnings(s.state),
 		Metrics: OperationalMetrics{
 			RequestsTotal:            s.requestsTotal.Load(),
 			RPCFailuresTotal:         s.rpcFailuresTotal.Load(),
@@ -274,6 +359,31 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func computeIntegrityWarnings(state *OracleState) []string {
+	if state == nil {
+		return nil
+	}
+
+	var warnings []string
+	if state.FeedAgeSec > 120 {
+		warnings = append(warnings, "FEED_STALE_EXCEEDED_FAIL_CLOSED_BOUNDARY")
+	}
+	if state.CircuitBreakerActive {
+		warnings = append(warnings, "CIRCUIT_BREAKER_ACTIVE_ON_CHAIN")
+	}
+
+	for _, entry := range state.Entries {
+		if entry.AgeSec > 120 {
+			warnings = append(warnings, fmt.Sprintf("ENTRY_STALE: %s", entry.Symbol))
+		}
+		if entry.VolatilityBps == 0xFFFFFFFF {
+			warnings = append(warnings, fmt.Sprintf("VOLATILITY_UNCOMPUTED: %s", entry.Symbol))
+		}
+	}
+
+	return warnings
 }
 
 func (s *Server) handleOracleLatest(w http.ResponseWriter, r *http.Request) {
@@ -296,6 +406,8 @@ func (s *Server) handleOracleLatest(w http.ResponseWriter, r *http.Request) {
 			s.state.Entries[i].AgeSec = nowSec - s.state.Entries[i].Timestamp
 		}
 	}
+
+	s.state.IntegrityWarnings = computeIntegrityWarnings(s.state)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(s.state)

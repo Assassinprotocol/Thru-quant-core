@@ -93,6 +93,7 @@ The Thru Quant Core Oracle delivers multi-asset financial price feeds on the Thr
 | `0x2011` | `ORACLE_ERR_NOT_TRIPPED` | `RESUME` invoked when `circuit_breaker_active == 0`. | `test_resume_when_not_tripped` |
 | `0x2012` | `ORACLE_ERR_INVALID_REGIME` | `regime_id > 3` passed in payload. | `test_invalid_regime_rejection` |
 | `0x2013` | `ORACLE_ERR_RESIZE_FAILED` | Account data resize syscall returned non-zero. | `test_resize_failure_handling` |
+| `0x2014` | `ORACLE_ERR_INVALID_VOLATILITY` | Volatility exceeds 10000 bps (100%) and is not unknown sentinel (`0xFFFFFFFF`). | `test_oracle_hardening (H8)` |
 
 ---
 

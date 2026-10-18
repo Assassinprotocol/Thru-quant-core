@@ -235,6 +235,9 @@ int main(void) {
     fresh(); set_clock(T0 + 10); { oracle_entry_t e = mk(1, 1, T0 + 10); e.price_q64_hi = 1ULL << 63; r = send(1, 1, T0 + 10, 1, &e); } CHECK(r.reverted && r.code == ORACLE_ERR_INVALID_PRICE, "H8 0x200C sign-bit price (hi>=2^63)");
     fresh(); set_clock(T0 + 10); { oracle_entry_t e = mk(0, q64_from_int(5), T0 + 10); r = send(1, 1, T0 + 10, 1, &e); } CHECK(r.reverted && r.code == ORACLE_ERR_INVALID_SYMBOL, "H8 0x2010 symbol 0");
     fresh(); set_clock(T0 + 10); { oracle_entry_t e = mk(1, q64_from_int(5), T0 + 10); r = send(1, 4, T0 + 10, 1, &e); } CHECK(r.reverted && r.code == ORACLE_ERR_INVALID_REGIME, "H8 0x2012 regime 4");
+    fresh(); set_clock(T0 + 10); { oracle_entry_t e = mk(1, q64_from_int(80100), T0 + 10); e.volatility_bps = 10001; r = send(1, 1, T0 + 10, 1, &e); } CHECK(r.reverted && r.code == ORACLE_ERR_INVALID_VOLATILITY, "H8 0x2014 volatility 10001 bps > 10000 max");
+    fresh(); set_clock(T0 + 10); { oracle_entry_t e = mk(1, q64_from_int(80100), T0 + 10); e.volatility_bps = 10000; r = send(1, 1, T0 + 10, 1, &e); } CHECK(r.returned && D()->entries[0].volatility_bps == 10000, "H8 10000 bps volatility accepted");
+    fresh(); set_clock(T0 + 10); { oracle_entry_t e = mk(1, q64_from_int(80100), T0 + 10); e.volatility_bps = ORACLE_VOLATILITY_UNKNOWN; r = send(1, 1, T0 + 10, 1, &e); } CHECK(r.returned && D()->entries[0].volatility_bps == ORACLE_VOLATILITY_UNKNOWN, "H8 0xFFFFFFFF unknown volatility accepted");
 
     /* H9 atomicity (mock has NO rollback, so passing proves validate-before-mutate) */
     fresh(); set_clock(T0 + 10); { oracle_entry_t es[2] = { mk(1, q64_from_int(80100), T0 + 10), mk(2, 0, T0 + 10) }; r = send(1, 1, T0 + 10, 2, es); }
