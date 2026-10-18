@@ -12,14 +12,16 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
+
+	"thru_quant_core/feeder/quorum"
 )
 
 func readLocalMarketData(dataPath string) (map[string]QuoteData, uint32, error) {
 	historyPath := filepath.Join(dataPath, "market_history.json")
-	regimePath := filepath.Join(dataPath, "market_regime.json")
 
 	histBytes, err := os.ReadFile(historyPath)
 	if err != nil {
@@ -70,16 +72,20 @@ func readLocalMarketData(dataPath string) (map[string]QuoteData, uint32, error) 
 		}
 	}
 
-	regimeID := uint32(0)
+	regimeID := readRegimeID(dataPath)
+	return resultQuotes, regimeID, nil
+}
+
+func readRegimeID(dataPath string) uint32 {
+	regimePath := filepath.Join(dataPath, "market_regime.json")
 	regimeBytes, err := os.ReadFile(regimePath)
 	if err == nil {
 		var mr MarketRegime
 		if json.Unmarshal(regimeBytes, &mr) == nil {
-			regimeID = parseRegimeID(mr.Regime)
+			return parseRegimeID(mr.Regime)
 		}
 	}
-
-	return resultQuotes, regimeID, nil
+	return 0
 }
 
 func confirmOperatorAction(prompt string) bool {
@@ -111,7 +117,36 @@ func main() {
 	oracleAccount := flag.String("account", "", "Target Oracle storage account address")
 	feePayer := flag.String("fee-payer", "0xhansen", "Fee payer key name from config")
 	once := flag.Bool("once", false, "Run once and exit")
+	mode := flag.String("mode", "local", "Feeder mode: 'local' (read disk files) or 'quorum' (ingest from multi-venue API sources)")
+	venues := flag.String("venues", "binance,coinbase,okx", "Comma-separated list of venue sources for quorum mode")
+	quorumCollarBps := flag.Int("quorum-collar-bps", 150, "Maximum basis point deviation allowable between venues for consensus")
+	quorumTimeout := flag.Duration("quorum-timeout", 2*time.Second, "Timeout per venue HTTP request")
 	flag.Parse()
+
+	var quorumSources []quorum.VenueSource
+	var quorumAgg *quorum.Aggregator
+	var targetSymbols []string
+	priceHistory := make(map[string][]float64)
+
+	if *mode == "quorum" {
+		var err error
+		quorumSources, err = initVenueSources(*venues, *quorumTimeout)
+		if err != nil {
+			log.Fatalf("feeder: failed initializing venue sources: %v", err)
+		}
+		aggCfg := quorum.DefaultConfig()
+		aggCfg.MaxDeviationBps = *quorumCollarBps
+		quorumAgg = quorum.NewAggregator(aggCfg)
+
+		for sym := range knownSymbols {
+			targetSymbols = append(targetSymbols, sym)
+		}
+		sort.Strings(targetSymbols)
+		log.Printf("feeder: mode=QUORUM venues=%s collar=%dbps tracking=%d symbols",
+			*venues, *quorumCollarBps, len(targetSymbols))
+	} else {
+		log.Printf("feeder: mode=LOCAL data_dir=%s", *dataPath)
+	}
 
 	if *resumeMode {
 		log.Printf("feeder: executing resume (opcode 2)")
@@ -165,9 +200,23 @@ func main() {
 		log.Printf("feeder: executing rebase (opcode 3)")
 		log.Printf("feeder: program=%s account=%s fee_payer=%s", *programPubkey, *oracleAccount, *feePayer)
 
-		prices, regimeID, err := readLocalMarketData(*dataPath)
-		if err != nil {
-			log.Fatalf("feeder: failed reading market data: %v", err)
+		var prices map[string]QuoteData
+		var regimeID uint32
+		if *mode == "quorum" {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			var err error
+			prices, _, err = fetchQuorumMarketData(ctx, quorumSources, quorumAgg, targetSymbols, priceHistory)
+			cancel()
+			if err != nil {
+				log.Fatalf("feeder: failed fetching quorum market data: %v", err)
+			}
+			regimeID = readRegimeID(*dataPath)
+		} else {
+			var err error
+			prices, regimeID, err = readLocalMarketData(*dataPath)
+			if err != nil {
+				log.Fatalf("feeder: failed reading market data: %v", err)
+			}
 		}
 
 		payload, entries := buildOracleRebasePayload(uint16(*accountIdx), regimeID, prices, nil)
@@ -258,7 +307,17 @@ func main() {
 			continue
 		}
 
-		prices, regimeID, err := readLocalMarketData(*dataPath)
+		var prices map[string]QuoteData
+		var regimeID uint32
+		var err error
+		if *mode == "quorum" {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			prices, _, err = fetchQuorumMarketData(ctx, quorumSources, quorumAgg, targetSymbols, priceHistory)
+			cancel()
+			regimeID = readRegimeID(*dataPath)
+		} else {
+			prices, regimeID, err = readLocalMarketData(*dataPath)
+		}
 		if err != nil {
 			log.Printf("feeder: seq=%d read error: %v", sequenceNum, err)
 		} else {

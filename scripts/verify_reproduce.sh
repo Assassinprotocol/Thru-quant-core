@@ -16,6 +16,7 @@ make test-math-golden
 make test-math-checked
 make fuzz-math
 make lint-c
+make lint-claims
 make verify-claims
 make test-api
 make build-api

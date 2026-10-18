@@ -304,9 +304,13 @@ console.log(`BTC: $${btc.priceDecimal} | Vol: ${btc.volatilityBps} bps`);
 - [docs/specification.md](docs/specification.md): Wire specification and memory map
 - [docs/quickstart.md](docs/quickstart.md): Quickstart guide
 - [docs/runbook.md](docs/runbook.md): Operator runbook
+- [docs/slos-and-alerts.md](docs/slos-and-alerts.md): Production SLOs, SLIs, and alerting rules
+- [docs/threat-model.md](docs/threat-model.md): STRIDE threat model and error code mapping
 - [docs/thru-runtime-assumptions.md](docs/thru-runtime-assumptions.md): ThruVM runtime execution assumptions
 - [docs/benchmarks.md](docs/benchmarks.md): Performance benchmarks
 - [docs/claims.md](docs/claims.md): Evidence registry and deployment status
+- [docs/adr/0001-oracle-v2-layout.md](docs/adr/0001-oracle-v2-layout.md): ADR 0001 - Oracle V2 layout & role separation
+- [docs/adr/0002-dynamic-breaker-bands.md](docs/adr/0002-dynamic-breaker-bands.md): ADR 0002 - Dynamic volatility bands & quarantine
 
 ---
 

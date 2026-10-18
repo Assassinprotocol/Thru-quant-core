@@ -35,6 +35,9 @@ fuzz-math:
 lint-c:
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc src/market_oracle.c src/clob_engine.c src/thru_math.c
 
+lint-claims:
+	bash scripts/claims_lint.sh
+
 verify-claims:
 	bash scripts/verify_onchain_claims.sh
 
@@ -76,7 +79,7 @@ test-sdk:
 run-example:
 	cd examples/quant-agent-consumer && ([ -d node_modules ] || npm install --silent) && node agent.ts --dry-run
 
-all-tests: test test-simulation test-hardening test-math-golden test-math-checked fuzz-math lint-c verify-claims test-api test-sdk run-example
+all-tests: test test-simulation test-hardening test-math-golden test-math-checked fuzz-math lint-c lint-claims verify-claims test-api test-sdk run-example
 
 clean-tests:
 	rm -f tests/test_math tests/test_simulation tests/test_contracts tests/test_bench tests/test_oracle_hardening tests/test_math_golden tests/test_math_checked tests/fuzz_math_diff

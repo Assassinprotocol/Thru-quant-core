@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"thru_quant_core/feeder/quorum"
 )
 
 func TestFloatToQ64Roundtrip(t *testing.T) {
@@ -369,6 +372,90 @@ func TestReadLocalMarketData(t *testing.T) {
 	}
 	if _, ok := quotes["SOLUSDT"]; ok {
 		t.Fatalf("expected zero-ts SOLUSDT to be excluded")
+	}
+}
+
+func TestInitVenueSources(t *testing.T) {
+	// Valid combinations
+	srcs, err := initVenueSources("binance,coinbase,okx", 2*time.Second)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(srcs) != 3 {
+		t.Fatalf("expected 3 sources, got %d", len(srcs))
+	}
+
+	// Mixed case and spaces
+	srcs, err = initVenueSources("  Binance ,  OKX  ", 2*time.Second)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(srcs) != 2 {
+		t.Fatalf("expected 2 sources, got %d", len(srcs))
+	}
+
+	// Unknown venue
+	_, err = initVenueSources("binance,kraken", 2*time.Second)
+	if err == nil {
+		t.Fatalf("expected error for unknown venue 'kraken'")
+	}
+
+	// Empty string
+	_, err = initVenueSources("", 2*time.Second)
+	if err == nil {
+		t.Fatalf("expected error for empty venue string")
+	}
+}
+
+func TestFetchQuorumMarketData(t *testing.T) {
+	now := time.Now()
+
+	s1 := quorum.NewMockVenueSource("binance")
+	s1.SetQuote("BTCUSDT", 67000.0, now)
+	s1.SetQuote("ETHUSDT", 3500.0, now)
+	s1.SetQuote("SOLUSDT", 150.0, now)
+
+	s2 := quorum.NewMockVenueSource("coinbase")
+	s2.SetQuote("BTCUSDT", 67050.0, now)
+	s2.SetQuote("ETHUSDT", 3502.0, now)
+	s2.SetQuote("SOLUSDT", 158.0, now) // > 150 bps away from 150 (5.3%)
+
+	s3 := quorum.NewMockVenueSource("okx")
+	s3.SetQuote("BTCUSDT", 67020.0, now)
+	s3.SetQuote("ETHUSDT", 3501.0, now)
+	s3.SetQuote("SOLUSDT", 165.0, now) // > 150 bps away from both
+
+	sources := []quorum.VenueSource{s1, s2, s3}
+	agg := quorum.NewAggregator(quorum.DefaultConfig())
+	symbols := []string{"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+	priceHist := make(map[string][]float64)
+
+	ctx := context.Background()
+	quotes, results, err := fetchQuorumMarketData(ctx, sources, agg, symbols, priceHist)
+	if err != nil {
+		t.Fatalf("fetchQuorumMarketData failed: %v", err)
+	}
+
+	// BTCUSDT: 3-venue consensus median = 67020.0
+	if btc, ok := quotes["BTCUSDT"]; !ok {
+		t.Fatalf("expected BTCUSDT in quotes")
+	} else if btc.Price != 67020.0 {
+		t.Fatalf("expected BTCUSDT price 67020.0, got %f", btc.Price)
+	}
+
+	// ETHUSDT: 3-venue consensus median = 3501.0
+	if eth, ok := quotes["ETHUSDT"]; !ok {
+		t.Fatalf("expected ETHUSDT in quotes")
+	} else if eth.Price != 3501.0 {
+		t.Fatalf("expected ETHUSDT price 3501.0, got %f", eth.Price)
+	}
+
+	// SOLUSDT: all 3 venues diverge > 150 bps -> dropped from quotes
+	if _, ok := quotes["SOLUSDT"]; ok {
+		t.Fatalf("expected SOLUSDT to be dropped due to quorum disagreement")
+	}
+	if res, ok := results["SOLUSDT"]; !ok || res.Status != quorum.QuorumStatusDisagreement {
+		t.Fatalf("expected SOLUSDT result status DISAGREEMENT, got %v", res.Status)
 	}
 }
 
