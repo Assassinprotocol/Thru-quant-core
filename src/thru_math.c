@@ -173,3 +173,137 @@ q64_t q64_ln(q64_t x) {
     for (int k = 11; k >= 0; k--) p = LN_C[k] + q64_mul(y2, p);
     return 2 * q64_mul(y, p) + q64_mul_ln2_int(e);
 }
+
+/* =========================================================================
+ * Checked Mathematical Functions (M2)
+ * ========================================================================= */
+
+q64_status_t q64_from_ratio_checked(int64_t num, int64_t den, q64_t *out) {
+    if (den == 0) return Q64_ERR_DIV_BY_ZERO;
+    bool neg = (num < 0) ^ (den < 0);
+    uint64_t u_num = (num == INT64_MIN) ? (1ULL << 63) : (uint64_t)(num < 0 ? -num : num);
+    uint64_t u_den = (den == INT64_MIN) ? (1ULL << 63) : (uint64_t)(den < 0 ? -den : den);
+
+    uint64_t q_int = u_num / u_den;
+    if (q_int >= (1ULL << 63)) {
+        return Q64_ERR_OVERFLOW;
+    }
+
+    uq64_t shifted = ((uq64_t)u_num) << Q64_SCALE_BITS;
+    uq64_t res = shifted / (uq64_t)u_den;
+    if (out) {
+        *out = neg ? (q64_t)((uq64_t)0 - res) : (q64_t)res;
+    }
+    return Q64_OK;
+}
+
+q64_status_t q64_mul_checked(q64_t a, q64_t b, q64_t *out) {
+    if (a == 0 || b == 0) {
+        if (out) *out = 0;
+        return Q64_OK;
+    }
+
+    bool neg = (a < 0) ^ (b < 0);
+    uq64_t ua = (a < 0) ? ((uq64_t)0 - (uq64_t)a) : (uq64_t)a;
+    uq64_t ub = (b < 0) ? ((uq64_t)0 - (uq64_t)b) : (uq64_t)b;
+
+    uint64_t a_hi = (uint64_t)(ua >> 64);
+    uint64_t a_lo = (uint64_t)ua;
+    uint64_t b_hi = (uint64_t)(ub >> 64);
+    uint64_t b_lo = (uint64_t)ub;
+
+    uq64_t p0 = (uq64_t)a_lo * b_lo;
+    uq64_t p1 = (uq64_t)a_lo * b_hi;
+    uq64_t p2 = (uq64_t)a_hi * b_lo;
+    uq64_t p3 = (uq64_t)a_hi * b_hi;
+
+    if (p3 >= ((uq64_t)1 << 63)) {
+        return Q64_ERR_OVERFLOW;
+    }
+
+    uq64_t mid = p1 + p2 + (p0 >> 64);
+    if (mid < p1) {
+        return Q64_ERR_OVERFLOW;
+    }
+
+    uq64_t hi_part = (p3 << 64);
+    uq64_t result = hi_part + mid;
+    if (result < hi_part || (result >> 127) > 0) {
+        return Q64_ERR_OVERFLOW;
+    }
+
+    if (out) {
+        *out = neg ? (q64_t)((uq64_t)0 - result) : (q64_t)result;
+    }
+    return Q64_OK;
+}
+
+q64_status_t q64_div_checked(q64_t a, q64_t b, q64_t *out) {
+    if (b == 0) return Q64_ERR_DIV_BY_ZERO;
+    if (a == 0) {
+        if (out) *out = 0;
+        return Q64_OK;
+    }
+
+    bool neg = (a < 0) ^ (b < 0);
+    uq64_t ua = (a < 0) ? ((uq64_t)0 - (uq64_t)a) : (uq64_t)a;
+    uq64_t ub = (b < 0) ? ((uq64_t)0 - (uq64_t)b) : (uq64_t)b;
+
+    uq64_t q_int = ua / ub;
+    if (q_int >= ((uq64_t)1 << 63)) {
+        return Q64_ERR_OVERFLOW;
+    }
+
+    uq64_t rem = ua % ub;
+    uq64_t frac = 0;
+    if (ub < ((uq64_t)1 << 64)) {
+        frac = (rem << 64) / ub;
+    } else {
+        for (int i = 0; i < 64; i++) {
+            rem <<= 1;
+            frac <<= 1;
+            if (rem >= ub) {
+                rem -= ub;
+                frac |= 1;
+            }
+        }
+    }
+
+    uq64_t result = (q_int << 64) | frac;
+    if (out) {
+        *out = neg ? (q64_t)((uq64_t)0 - result) : (q64_t)result;
+    }
+    return Q64_OK;
+}
+
+q64_status_t q64_sqrt_checked(q64_t x, q64_t *out) {
+    if (x < 0) return Q64_ERR_DOMAIN;
+    if (x == 0) {
+        if (out) *out = 0;
+        return Q64_OK;
+    }
+    if (out) {
+        *out = q64_sqrt(x);
+    }
+    return Q64_OK;
+}
+
+q64_status_t q64_exp_checked(q64_t x, q64_t *out) {
+    if (x > ((q64_t)43 << 64)) return Q64_ERR_OVERFLOW;
+    if (x < -((q64_t)45 << 64)) {
+        if (out) *out = 0;
+        return Q64_ERR_UNDERFLOW;
+    }
+    if (out) {
+        *out = q64_exp(x);
+    }
+    return Q64_OK;
+}
+
+q64_status_t q64_ln_checked(q64_t x, q64_t *out) {
+    if (x <= 0) return Q64_ERR_DOMAIN;
+    if (out) {
+        *out = q64_ln(x);
+    }
+    return Q64_OK;
+}

@@ -231,6 +231,22 @@ static void handle_place_limit(void const *instruction_data, ulong instruction_d
     }
 
     tn_pubkey_t const *fee_payer = &tsdk_get_txn()->hdr.v1.fee_payer_pubkey;
+
+    /* Anti-DoS Trader Open Orders Limit Gate (K1) */
+    uint32_t trader_open_orders = 0;
+    for (int i = 0; i < CLOB_MAX_ORDERS_PER_SIDE; i++) {
+        if (state->bids[i].status == CLOB_STATUS_OPEN && memcmp(state->bids[i].trader, fee_payer->uc, 32) == 0) {
+            trader_open_orders++;
+        }
+        if (state->asks[i].status == CLOB_STATUS_OPEN && memcmp(state->asks[i].trader, fee_payer->uc, 32) == 0) {
+            trader_open_orders++;
+        }
+    }
+    if (trader_open_orders >= CLOB_MAX_ORDERS_PER_TRADER) {
+        tsdk_printf("clob_engine: trader exceeded max open orders (%u >= %u)", trader_open_orders, CLOB_MAX_ORDERS_PER_TRADER);
+        tsdk_revert(CLOB_ERR_TRADER_LIMIT);
+    }
+
     uint32_t cur_ts = (uint32_t)(tsdk_get_current_block_ctx()->slot);
     uint64_t rem_qty = args->qty;
 

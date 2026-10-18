@@ -61,6 +61,23 @@ q64_t q64_sqrt(q64_t x);
 q64_t q64_exp(q64_t x);
 q64_t q64_ln(q64_t x);
 
+/* Error and status codes for checked math operations */
+typedef enum {
+    Q64_OK = 0,
+    Q64_ERR_OVERFLOW = 1,
+    Q64_ERR_UNDERFLOW = 2,
+    Q64_ERR_DIV_BY_ZERO = 3,
+    Q64_ERR_DOMAIN = 4
+} q64_status_t;
+
+/* Checked variants with explicit error status reporting */
+q64_status_t q64_from_ratio_checked(int64_t num, int64_t den, q64_t *out);
+q64_status_t q64_mul_checked(q64_t a, q64_t b, q64_t *out);
+q64_status_t q64_div_checked(q64_t a, q64_t b, q64_t *out);
+q64_status_t q64_sqrt_checked(q64_t x, q64_t *out);
+q64_status_t q64_exp_checked(q64_t x, q64_t *out);
+q64_status_t q64_ln_checked(q64_t x, q64_t *out);
+
 #ifdef __cplusplus
 }
 #endif

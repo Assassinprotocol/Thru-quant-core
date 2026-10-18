@@ -412,11 +412,43 @@ static void test_clob_lifecycle_and_invariants(void) {
     assert(state->bid_count == 0);
     assert(state->best_bid_idx == -1);
     printf("  [✓] 7. Authorized cancel unlinked order node cleanly\n");
+
+    /* 8. Trader Open Order Cap (K1): max 8 open orders per trader */
+    memset(g_mock_txn.hdr.v1.fee_payer_pubkey.uc, 0x99, 32);
+    for (int i = 0; i < 8; i++) {
+        g_has_reverted = false;
+        g_has_returned = false;
+        place_args.side = CLOB_SIDE_BID;
+        q64_t p = q64_from_int(2000 - i * 10);
+        place_args.price_hi = (uint64_t)(p >> 64);
+        place_args.price_lo = (uint64_t)p;
+        place_args.qty = 1;
+        jmp_rc = setjmp(g_test_jmp);
+        if (jmp_rc == 0) {
+            clob_contract_start(&place_args, sizeof(place_args));
+        }
+        assert(g_has_returned && g_last_return_code == TSDK_SUCCESS);
+    }
+    assert(state->bid_count == 8);
+
+    /* 9th order must revert with CLOB_ERR_TRADER_LIMIT (0x300C) */
+    g_has_reverted = false;
+    g_has_returned = false;
+    q64_t p9 = q64_from_int(1900);
+    place_args.price_hi = (uint64_t)(p9 >> 64);
+    place_args.price_lo = (uint64_t)p9;
+    place_args.qty = 1;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&place_args, sizeof(place_args));
+    }
+    assert(g_has_reverted && g_last_revert_code == CLOB_ERR_TRADER_LIMIT);
+    printf("  [✓] 8. Anti-DoS: Trader exceeded max 8 open orders rejected (0x300C)\n");
 }
 
 int main(void) {
     test_oracle_lifecycle_and_breaker();
     test_clob_lifecycle_and_invariants();
-    printf("test_contracts: all 14 scenarios passed\n");
+    printf("test_contracts: all 15 scenarios passed\n");
     return 0;
 }

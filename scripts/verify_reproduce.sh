@@ -13,6 +13,8 @@ make test
 make test-simulation
 make test-hardening
 make test-math-golden
+make test-math-checked
+make fuzz-math
 make lint-c
 make verify-claims
 make test-api

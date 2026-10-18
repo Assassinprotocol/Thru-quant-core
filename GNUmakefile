@@ -23,6 +23,15 @@ test-math-golden:
 	gcc -O2 -fsanitize=address,undefined -Iinclude tests/test_math_golden.c src/thru_math.c -o tests/test_math_golden
 	./tests/test_math_golden
 
+test-math-checked:
+	gcc -O2 -fsanitize=address,undefined -Iinclude -Isrc tests/test_math_checked.c src/thru_math.c -o tests/test_math_checked
+	./tests/test_math_checked
+
+fuzz-math:
+	gcc -O3 -Iinclude -Isrc tests/fuzz_math_diff.c src/thru_math.c -lm -o tests/fuzz_math_diff
+	./tests/fuzz_math_diff 200000
+	rm -f tests/fuzz_math_diff
+
 lint-c:
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc src/market_oracle.c src/clob_engine.c src/thru_math.c
 
@@ -37,6 +46,15 @@ build-api:
 
 build-feeder:
 	go build -o build/feeder ./feeder
+
+build-rv64:
+	$(MAKE) bin
+	@echo "=== Verifying RISC-V Binary Bounds (< 32 KB) ==="
+	@test $$(wc -c < build/thruvm/bin/market_oracle_c.bin) -le 32768 || { echo "market_oracle_c.bin exceeds 32KB"; exit 1; }
+	@test $$(wc -c < build/thruvm/bin/clob_engine_c.bin) -le 32768 || { echo "clob_engine_c.bin exceeds 32KB"; exit 1; }
+	@echo "  [OK] market_oracle_c.bin: $$(wc -c < build/thruvm/bin/market_oracle_c.bin) B"
+	@echo "  [OK] clob_engine_c.bin:   $$(wc -c < build/thruvm/bin/clob_engine_c.bin) B"
+	@sha256sum build/thruvm/bin/*.bin
 
 run-api: build-api
 	./build/thru_oracle_api --port 8080 --static-dir ./visualizer
@@ -58,8 +76,8 @@ test-sdk:
 run-example:
 	cd examples/quant-agent-consumer && ([ -d node_modules ] || npm install --silent) && node agent.ts --dry-run
 
-all-tests: test test-simulation test-hardening test-math-golden lint-c verify-claims test-api test-sdk run-example
+all-tests: test test-simulation test-hardening test-math-golden test-math-checked fuzz-math lint-c verify-claims test-api test-sdk run-example
 
 clean-tests:
-	rm -f tests/test_math tests/test_simulation tests/test_contracts tests/test_bench tests/test_oracle_hardening tests/test_math_golden
+	rm -f tests/test_math tests/test_simulation tests/test_contracts tests/test_bench tests/test_oracle_hardening tests/test_math_golden tests/test_math_checked tests/fuzz_math_diff
 
