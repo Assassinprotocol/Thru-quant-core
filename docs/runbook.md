@@ -90,28 +90,65 @@ The feeder monitors local or incoming market state files, validates timestamps, 
 ### 3.2 Scenario B: Circuit Breaker Tripped (`circuit_breaker_active == 1`)
 1. **Detection**:
    - `/ready` returns HTTP 503 with `"status": "circuit_breaker_active"`.
-   - Visualizer activates prominent Crimson banner:  
-     `🚨 CIRCUIT BREAKER TRIPPED: On-chain price jump exceeded volatility threshold.`
+   - Visualizer activates red banner:  
+     `CIRCUIT BREAKER TRIPPED: On-chain price jump exceeded volatility threshold.`
    - Contract strictly blocks all further quote updates (`ORACLE_ERR_CIRCUIT_BREAKER = 0x2007`). Existing quotes are preserved.
 2. **Investigation**:
-   - Read on-chain event logs to identify the offending asset and percentage deviation:
+   - Inspect on-chain state to identify offending assets and percentage deviation:
      ```bash
      curl -s http://localhost:8080/v1/oracle/latest | jq '{circuit_breaker_active, regime_id, last_update_ts}'
      ```
-   - Verify if the price movement was genuine market volatility or an aberrant oracle bad-data spike.
-3. **Authorized Recovery & Reset**:
-   - Execute the official authorized resume protocol using the authority key:
-     ```bash
-     # Dry-run validation
-     ./build/feeder --resume --dry-run
-     
-     # On-chain execution
-     ./build/feeder --resume \
-       --program taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR \
-       --account taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN \
-       --fee-payer 0xhansen
-     ```
-   - Read back account state to verify reset:
+   - Compare current market spot prices against the last committed on-chain quotes.
+
+3. **Break-Glass Decision Tree: `RESUME` vs `REBASE`**:
+
+   ```
+                      [ Circuit Breaker Tripped ]
+                                   │
+                   Is market price within ±500 bps
+                      of last on-chain quote?
+                                  / \
+                                 /   \
+                             YES       NO
+                              /         \
+                             ▼           ▼
+                      [ Anomaly Transien ]   [ Structural Shift (≥5%) ]
+                             │                         │
+                  Run --resume protocol        Run --rebase protocol
+               (Unpauses; next tick checks)   (Atomic baseline reset)
+   ```
+
+   - **Path A: Transient Spike Reversion (`RESUME`)**
+     - *Condition:* Offending market spike has reverted to within ±5% of the pre-trip baseline.
+     - *Procedure:*
+       ```bash
+       # 1. Dry-run verification
+       ./build/feeder --resume --dry-run
+
+       # 2. On-chain execution via authority key
+       ./build/feeder --resume \
+         --program taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR \
+         --account taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN \
+         --fee-payer 0xhansen
+       ```
+
+   - **Path B: Permanent Structural Move (`REBASE`)**
+     - *Condition:* Real-world market price moved $\ge 5\%$ (e.g. macro volatility, ETF approval).
+     - *Danger:* Calling `--resume` under a structural shift will cause the very next update batch to re-trip the breaker (`0x2007`), trapping the feed in an infinite trip loop.
+     - *Procedure:*
+       ```bash
+       # 1. Dry-run inspection: review new baselines across all assets
+       ./build/feeder --rebase --dry-run
+
+       # 2. On-chain execution: atomically writes fresh prices and clears breaker
+       ./build/feeder --rebase \
+         --program taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR \
+         --account taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN \
+         --fee-payer 0xhansen
+       ```
+
+4. **Post-Recovery Verification**:
+   - Read back readiness endpoint:
      ```bash
      curl -s http://localhost:8080/ready | jq .
      ```
@@ -119,11 +156,32 @@ The feeder monitors local or incoming market state files, validates timestamps, 
 
 ---
 
-## 4. Key Management & Authority Rotation
+## 4. Key Management & Cold/Hot Role Separation
 
-1. **Private Key Protection**:
-   - Never commit or log raw private keys or seed phrases.
-   - Reference keys exclusively via key name (`--fee-payer 0xhansen`) or keyfile path.
-2. **Authority Verification**:
-   - The on-chain oracle validates that transaction signer matches `authority_pubkey` initialized in offset 4..36 of `oracle_account_data_t`.
-   - Unauthorized attempts to submit updates or trigger resumes revert with `ORACLE_ERR_UNAUTHORIZED` (`0x2003`).
+### 4.1 Key Architecture
+
+| Role | Instruction Scope | Environment | Security Requirement |
+| :--- | :--- | :--- | :--- |
+| **Hot Feeder Key** | Opcode `1` (`UPDATE_PRICES`) | Feeder Daemon Host | Filesystem permissions `chmod 600`, non-root execution, automated signing. |
+| **Cold Admin Key** | Opcode `0` (`INITIALIZE`)<br>Opcode `2` (`RESUME`)<br>Opcode `3` (`REBASE`) | Air-gapped / Operator Workstation | Isolated from public networks, manual passphrase entry, hardware-backed storage where available. |
+
+### 4.2 Key Generation & Storage Procedures
+
+1. **Key Generation**:
+   ```bash
+   # Generate dedicated operational keypair
+   thru keys generate --name oracle-feeder-hot
+   thru keys generate --name oracle-admin-cold
+   ```
+
+2. **Zero Plaintext Key Exposure**:
+   - Never print, log, or pipe private keys or seed phrases to stdout or shell history.
+   - Always reference keys by their handle (e.g. `--fee-payer 0xhansen`) or via encrypted keyfile path.
+   - The on-chain oracle program strictly rejects instructions where signer does not match `authority_pubkey` with `ORACLE_ERR_UNAUTHORIZED` (`0x2003`).
+
+3. **Key Rotation**:
+   - When rotating hot keys, update the feeder systemd service file and restart:
+     ```bash
+     systemctl restart thru-feeder
+     ```
+   - In v1, the contract's `authority_pubkey` is set during initialization (`handle_initialize`). Upgrading authority requires deploying a new storage account or using the v2 multisig aggregator contract.

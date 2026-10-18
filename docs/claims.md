@@ -24,7 +24,7 @@ All claims are classified using the repository's **6-Tier Verification Hierarchy
 | **CLOB Anti-DoS Min Notional Gate** | `Host-tested`<br>`Target-built` | - Rejects orders below `min_notional` before matching or insertion.<br>- Validated in `tests/test_contracts.c`. | 2026-10-14 |
 | **Binary Memory State Decoder** | `Host-tested`<br>`Runtime-verified` | - Go binary decoder deserializes 948B packed `oracle_account_data_t` in **3.56 µs** (~280k ops/sec).<br>- Validated against raw on-chain test vectors in `api/decoder_test.go` and `api/decoder_benchmark_test.go`. | 2026-10-15 |
 | **Operational Probes & Incident Tooling** | `Host-tested`<br>`Runtime-verified` | - Liveness (`/health`) decoupled from Readiness (`/ready`).<br>- Feeder `--resume` CLI generates authorized unpause instructions.<br>- Documented in `docs/runbook.md`. | 2026-10-15 |
-| **Live Developer Console & Telemetry** | `Host-tested`<br>`Runtime-verified` | - Institutional dark cockpit with live `/ready` status, dynamic decoder latency metric, and operational telemetry grid.<br>- Validated via `make test-api` and `scripts/verify_reproduce.sh`. | 2026-10-15 |
+| **Live Developer Console & Telemetry** | `Host-tested`<br>`Runtime-verified` | - Live developer web console with `/ready` status, dynamic decoder latency metrics, and operational telemetry grid.<br>- Validated via `make test-api` and `scripts/verify_reproduce.sh`. | 2026-10-15 |
 | **Custody, Balances & Escrow** | `Not Implemented` | - **Explicit Out-of-Scope Boundary:** CLOB operates purely on memory-ladder order matching; no financial balances, token escrow, or settlement guarantees exist. | N/A |
 
 ---

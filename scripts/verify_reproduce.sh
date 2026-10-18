@@ -14,6 +14,7 @@ make test-simulation
 make test-hardening
 make test-math-golden
 make lint-c
+make verify-claims
 make test-api
 make build-api
 make build-feeder

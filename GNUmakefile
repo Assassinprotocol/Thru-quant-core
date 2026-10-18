@@ -26,6 +26,9 @@ test-math-golden:
 lint-c:
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc src/market_oracle.c src/clob_engine.c src/thru_math.c
 
+verify-claims:
+	bash scripts/verify_onchain_claims.sh
+
 test-api:
 	go test -v ./...
 
@@ -55,7 +58,7 @@ test-sdk:
 run-example:
 	cd examples/quant-agent-consumer && ([ -d node_modules ] || npm install --silent) && node agent.ts --dry-run
 
-all-tests: test test-simulation test-hardening test-math-golden lint-c test-api test-sdk run-example
+all-tests: test test-simulation test-hardening test-math-golden lint-c verify-claims test-api test-sdk run-example
 
 clean-tests:
 	rm -f tests/test_math tests/test_simulation tests/test_contracts tests/test_bench tests/test_oracle_hardening tests/test_math_golden
