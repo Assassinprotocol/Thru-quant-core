@@ -111,41 +111,102 @@ func (a *Aggregator) Aggregate(symbol string, rawQuotes []VenueQuote, now time.T
 	}
 
 	// Three venues
-	p0 := fresh[0].Price
-	p1 := fresh[1].Price
-	p2 := fresh[2].Price
+	if len(fresh) == 3 {
+		p0 := fresh[0].Price
+		p1 := fresh[1].Price
+		p2 := fresh[2].Price
 
-	d01 := calcDeviationBps(p0, p1)
-	d12 := calcDeviationBps(p1, p2)
-	d02 := calcDeviationBps(p0, p2)
+		d01 := calcDeviationBps(p0, p1)
+		d12 := calcDeviationBps(p1, p2)
+		d02 := calcDeviationBps(p0, p2)
 
-	if d02 <= a.cfg.MaxDeviationBps {
+		if d02 <= a.cfg.MaxDeviationBps {
+			res.Status = QuorumStatusConsensus
+			res.Price = p1 // Median
+			res.MaxDeviationBps = d02
+			res.Contributing = []string{fresh[0].Venue, fresh[1].Venue, fresh[2].Venue}
+			return res
+		}
+
+		if d01 <= a.cfg.MaxDeviationBps {
+			res.Status = QuorumStatusOutlierFiltered
+			res.Price = (p0 + p1) / 2.0
+			res.MaxDeviationBps = d01
+			res.Contributing = []string{fresh[0].Venue, fresh[1].Venue}
+			res.Outliers = []string{fresh[2].Venue}
+			return res
+		}
+
+		if d12 <= a.cfg.MaxDeviationBps {
+			res.Status = QuorumStatusOutlierFiltered
+			res.Price = (p1 + p2) / 2.0
+			res.MaxDeviationBps = d12
+			res.Contributing = []string{fresh[1].Venue, fresh[2].Venue}
+			res.Outliers = []string{fresh[0].Venue}
+			return res
+		}
+
+		res.Status = QuorumStatusDisagreement
+		res.MaxDeviationBps = int(math.Max(float64(d01), float64(d12)))
+		return res
+	}
+
+	// Four or more venues: generalized consensus and outlier filtering
+	n := len(fresh)
+	dAll := calcDeviationBps(fresh[0].Price, fresh[n-1].Price)
+	if dAll <= a.cfg.MaxDeviationBps {
 		res.Status = QuorumStatusConsensus
-		res.Price = p1 // Median
-		res.MaxDeviationBps = d02
-		res.Contributing = []string{fresh[0].Venue, fresh[1].Venue, fresh[2].Venue}
+		if n%2 == 1 {
+			res.Price = fresh[n/2].Price
+		} else {
+			res.Price = (fresh[n/2-1].Price + fresh[n/2].Price) / 2.0
+		}
+		res.MaxDeviationBps = dAll
+		for _, q := range fresh {
+			res.Contributing = append(res.Contributing, q.Venue)
+		}
 		return res
 	}
 
-	if d01 <= a.cfg.MaxDeviationBps {
-		res.Status = QuorumStatusOutlierFiltered
-		res.Price = (p0 + p1) / 2.0
-		res.MaxDeviationBps = d01
-		res.Contributing = []string{fresh[0].Venue, fresh[1].Venue}
-		res.Outliers = []string{fresh[2].Venue}
-		return res
-	}
+	// Check single outlier filtering (lowest fresh[0] or highest fresh[n-1])
+	dDropLow := calcDeviationBps(fresh[1].Price, fresh[n-1].Price)
+	dDropHigh := calcDeviationBps(fresh[0].Price, fresh[n-2].Price)
 
-	if d12 <= a.cfg.MaxDeviationBps {
+	if dDropLow <= a.cfg.MaxDeviationBps && (dDropHigh > a.cfg.MaxDeviationBps || dDropLow < dDropHigh) {
 		res.Status = QuorumStatusOutlierFiltered
-		res.Price = (p1 + p2) / 2.0
-		res.MaxDeviationBps = d12
-		res.Contributing = []string{fresh[1].Venue, fresh[2].Venue}
+		sub := fresh[1:]
+		subN := len(sub)
+		if subN%2 == 1 {
+			res.Price = sub[subN/2].Price
+		} else {
+			res.Price = (sub[subN/2-1].Price + sub[subN/2].Price) / 2.0
+		}
+		res.MaxDeviationBps = dDropLow
+		for _, q := range sub {
+			res.Contributing = append(res.Contributing, q.Venue)
+		}
 		res.Outliers = []string{fresh[0].Venue}
 		return res
 	}
 
+	if dDropHigh <= a.cfg.MaxDeviationBps {
+		res.Status = QuorumStatusOutlierFiltered
+		sub := fresh[:n-1]
+		subN := len(sub)
+		if subN%2 == 1 {
+			res.Price = sub[subN/2].Price
+		} else {
+			res.Price = (sub[subN/2-1].Price + sub[subN/2].Price) / 2.0
+		}
+		res.MaxDeviationBps = dDropHigh
+		for _, q := range sub {
+			res.Contributing = append(res.Contributing, q.Venue)
+		}
+		res.Outliers = []string{fresh[n-1].Venue}
+		return res
+	}
+
 	res.Status = QuorumStatusDisagreement
-	res.MaxDeviationBps = int(math.Max(float64(d01), float64(d12)))
+	res.MaxDeviationBps = dAll
 	return res
 }

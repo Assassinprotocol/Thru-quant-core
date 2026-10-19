@@ -213,6 +213,17 @@ export function formatBps(bps) {
  * @file decoder.ts
  * @description Zero-copy, little-endian binary wire deserializer for on-chain Oracle storage accounts.
  */
+const HEX_LUT = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
+function bytesToHex(bytes, start, end) {
+    if (typeof Buffer !== "undefined") {
+        return Buffer.from(bytes.subarray(start, end)).toString("hex");
+    }
+    let out = "";
+    for (let i = start; i < end; i++) {
+        out += HEX_LUT[bytes[i]];
+    }
+    return out;
+}
 /**
  * Deserializes raw Little-Endian binary bytes into an unpacked, indexed OracleState object.
  *
@@ -230,10 +241,7 @@ export function decodeOracleAccount(bytes, nowSec) {
         throw new Error(`Unsupported oracle state version: expected 1, got ${version}`);
     }
     // Authority pubkey (32 bytes at offset 4)
-    let authorityHex = "";
-    for (let i = 0; i < 32; i++) {
-        authorityHex += bytes[4 + i].toString(16).padStart(2, "0");
-    }
+    const authorityHex = bytesToHex(bytes, 4, 36);
     const circuitBreakerActive = view.getUint8(36) !== 0;
     const regimeId = view.getUint32(40, true);
     const lastUpdateTs = view.getUint32(44, true);
@@ -508,7 +516,8 @@ export function evaluateRiskGate(state, symbol, options) {
  * @description High-level dual-transport client for Thru Quant Oracle (Alphanet RPC + Local Daemon REST).
  */
 const DEFAULT_ACCOUNT_ADDRESS = "taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN";
-const DEFAULT_DAEMON_URL = "http://localhost:8082";
+const DEFAULT_PROGRAM_ID = "taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR";
+const DEFAULT_DAEMON_URL = "http://localhost:8080";
 const DEFAULT_RPC_URL = "https://alphanet.thru.network/rpc";
 /**
  * Unified Oracle Client supporting direct Alphanet JSON-RPC and Local Go Daemon REST transports.
@@ -517,11 +526,13 @@ export class OracleClient {
     rpcUrl;
     daemonUrl;
     accountAddress;
+    programId;
     timeoutMs;
     constructor(options = {}) {
         this.rpcUrl = options.rpcUrl || DEFAULT_RPC_URL;
         this.daemonUrl = options.daemonUrl || DEFAULT_DAEMON_URL;
         this.accountAddress = options.accountAddress || DEFAULT_ACCOUNT_ADDRESS;
+        this.programId = options.programId || DEFAULT_PROGRAM_ID;
         this.timeoutMs = options.timeoutMs || 5000;
     }
     /**
@@ -631,6 +642,9 @@ export class OracleClient {
         const data = (await res.json());
         if (data.error) {
             throw new Error(`Thru RPC error: ${data.error.message}`);
+        }
+        if (data.result?.owner && data.result.owner !== this.programId) {
+            throw new Error(`Thru RPC security check failed: account owner '${data.result.owner}' does not match expected program '${this.programId}'`);
         }
         let b64 = "";
         if (typeof data.result?.data === "string") {

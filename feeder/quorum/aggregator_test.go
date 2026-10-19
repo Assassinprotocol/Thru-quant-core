@@ -182,3 +182,56 @@ func TestAggregator_StaleQuoteFiltering(t *testing.T) {
 		t.Fatalf("expected insufficient venues due to stale quote, got %s", res.Status)
 	}
 }
+
+func TestAggregator_FourVenuesConsensus(t *testing.T) {
+	agg := NewAggregator(DefaultConfig())
+	now := time.Now()
+
+	quotes := []VenueQuote{
+		{Venue: "binance", Symbol: "BTCUSDT", Price: 83450.0, Timestamp: now},
+		{Venue: "coinbase", Symbol: "BTCUSDT", Price: 83452.0, Timestamp: now},
+		{Venue: "okx", Symbol: "BTCUSDT", Price: 83454.0, Timestamp: now},
+		{Venue: "kraken", Symbol: "BTCUSDT", Price: 83456.0, Timestamp: now},
+	}
+
+	res := agg.Aggregate("BTCUSDT", quotes, now)
+
+	if res.Status != QuorumStatusConsensus {
+		t.Fatalf("expected consensus with 4 venues, got %s", res.Status)
+	}
+	expectedPrice := (83452.0 + 83454.0) / 2.0
+	if res.Price != expectedPrice {
+		t.Fatalf("expected median price %f, got %f", expectedPrice, res.Price)
+	}
+	if len(res.Contributing) != 4 {
+		t.Fatalf("expected 4 contributing venues, got %d", len(res.Contributing))
+	}
+}
+
+func TestAggregator_FourVenuesOutlierFiltering(t *testing.T) {
+	agg := NewAggregator(DefaultConfig())
+	now := time.Now()
+
+	// 3 venues agree around 83,450; kraken has +5% outlier spike
+	quotes := []VenueQuote{
+		{Venue: "binance", Symbol: "BTCUSDT", Price: 83450.0, Timestamp: now},
+		{Venue: "coinbase", Symbol: "BTCUSDT", Price: 83452.0, Timestamp: now},
+		{Venue: "okx", Symbol: "BTCUSDT", Price: 83454.0, Timestamp: now},
+		{Venue: "kraken", Symbol: "BTCUSDT", Price: 87622.0, Timestamp: now},
+	}
+
+	res := agg.Aggregate("BTCUSDT", quotes, now)
+
+	if res.Status != QuorumStatusOutlierFiltered {
+		t.Fatalf("expected outlier filtered with 4 venues, got %s", res.Status)
+	}
+	if res.Price != 83452.0 {
+		t.Fatalf("expected median of remaining 3 venues 83452.0, got %f", res.Price)
+	}
+	if len(res.Outliers) != 1 || res.Outliers[0] != "kraken" {
+		t.Fatalf("expected kraken as outlier, got %v", res.Outliers)
+	}
+	if len(res.Contributing) != 3 {
+		t.Fatalf("expected 3 contributing venues, got %d", len(res.Contributing))
+	}
+}

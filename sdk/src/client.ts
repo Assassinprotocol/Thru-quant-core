@@ -15,7 +15,9 @@ import { evaluateRiskGate } from "./guards.ts";
 
 const DEFAULT_ACCOUNT_ADDRESS =
   "taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN";
-const DEFAULT_DAEMON_URL = "http://localhost:8082";
+const DEFAULT_PROGRAM_ID =
+  "taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR";
+const DEFAULT_DAEMON_URL = "http://localhost:8080";
 const DEFAULT_RPC_URL = "https://alphanet.thru.network/rpc";
 
 /**
@@ -25,12 +27,14 @@ export class OracleClient {
   private rpcUrl: string;
   private daemonUrl: string;
   private accountAddress: string;
+  private programId: string;
   private timeoutMs: number;
 
   constructor(options: OracleClientOptions = {}) {
     this.rpcUrl = options.rpcUrl || DEFAULT_RPC_URL;
     this.daemonUrl = options.daemonUrl || DEFAULT_DAEMON_URL;
     this.accountAddress = options.accountAddress || DEFAULT_ACCOUNT_ADDRESS;
+    this.programId = options.programId || DEFAULT_PROGRAM_ID;
     this.timeoutMs = options.timeoutMs || 5000;
   }
 
@@ -149,12 +153,18 @@ export class OracleClient {
     }
 
     const data = (await res.json()) as {
-      result?: { data?: string | string[] };
+      result?: { data?: string | string[]; owner?: string };
       error?: { message?: string };
     };
 
     if (data.error) {
       throw new Error(`Thru RPC error: ${data.error.message}`);
+    }
+
+    if (data.result?.owner && data.result.owner !== this.programId) {
+      throw new Error(
+        `Thru RPC security check failed: account owner '${data.result.owner}' does not match expected program '${this.programId}'`
+      );
     }
 
     let b64 = "";

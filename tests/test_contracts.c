@@ -724,6 +724,19 @@ static void test_clob_lifecycle_and_invariants(void) {
     assert(g_has_reverted && g_last_revert_code == CLOB_ERR_ORDER_NOT_FOUND);
     printf("  [✓] 14. Nonexistent order cancellation rejected with 0x3005\n");
 
+    /* 14b. Cancellation on Nonexistent/Uninitialized Account Rejects (0x3004) */
+    g_has_reverted = false;
+    g_has_returned = false;
+    cancel_args.instruction_type = CLOB_INSTR_CANCEL;
+    cancel_args.clob_account_idx = 15; // Nonexistent account index
+    cancel_args.order_id = 1;
+    jmp_rc = setjmp(g_test_jmp);
+    if (jmp_rc == 0) {
+        clob_contract_start(&cancel_args, sizeof(cancel_args));
+    }
+    assert(g_has_reverted && g_last_revert_code == CLOB_ERR_DATA_ACCESS_FAILED);
+    printf("  [✓] 14b. Cancellation on uninitialized account rejected with 0x3004\n");
+
     /* 15. Complete Order Consumption & Double-Sided Best Insertion */
     reset_mock_env();
     memset(&init_args, 0, sizeof(init_args));

@@ -203,7 +203,8 @@ export interface RiskEvaluationResult {
  */
 export interface OracleClientOptions {
   rpcUrl?: string;            // Direct Thru JSON-RPC endpoint
-  daemonUrl?: string;         // Local Go Daemon REST endpoint (default http://localhost:8082)
+  daemonUrl?: string;         // Local Go Daemon REST endpoint (default http://localhost:8080)
   accountAddress?: string;    // Oracle Account Address (taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN)
+  programId?: string;         // Pinned Oracle Program ID (taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR)
   timeoutMs?: number;
 }

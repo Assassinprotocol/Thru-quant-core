@@ -18,17 +18,53 @@ type visitor struct {
 
 // rateLimiter enforces token-bucket rate limits per client IP
 type rateLimiter struct {
-	mu       sync.Mutex
-	visitors map[string]*visitor
-	capacity float64
-	rate     float64
+	mu          sync.Mutex
+	visitors    map[string]*visitor
+	capacity    float64
+	rate        float64
+	stopCleanup chan struct{}
 }
 
 func newRateLimiter(capacity, rate float64) *rateLimiter {
-	return &rateLimiter{
-		visitors: make(map[string]*visitor),
-		capacity: capacity,
-		rate:     rate,
+	rl := &rateLimiter{
+		visitors:    make(map[string]*visitor),
+		capacity:    capacity,
+		rate:        rate,
+		stopCleanup: make(chan struct{}),
+	}
+	go rl.cleanupLoop()
+	return rl
+}
+
+func (rl *rateLimiter) cleanupLoop() {
+	ticker := time.NewTicker(2 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			rl.cleanup(3 * time.Minute)
+		case <-rl.stopCleanup:
+			return
+		}
+	}
+}
+
+func (rl *rateLimiter) cleanup(maxAge time.Duration) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	now := time.Now()
+	for k, val := range rl.visitors {
+		if now.Sub(val.lastSeen) > maxAge {
+			delete(rl.visitors, k)
+		}
+	}
+}
+
+func (rl *rateLimiter) Close() {
+	select {
+	case <-rl.stopCleanup:
+	default:
+		close(rl.stopCleanup)
 	}
 }
 
@@ -42,13 +78,6 @@ func (rl *rateLimiter) allow(ip string) bool {
 		rl.visitors[ip] = &visitor{
 			tokens:   rl.capacity - 1.0,
 			lastSeen: now,
-		}
-		if len(rl.visitors) > 10000 {
-			for k, val := range rl.visitors {
-				if now.Sub(val.lastSeen) > 3*time.Minute {
-					delete(rl.visitors, k)
-				}
-			}
 		}
 		return true
 	}
@@ -99,6 +128,13 @@ func NewServer(programAddr, accountAddr, network, staticDir string) *Server {
 		network:     network,
 		staticDir:   staticDir,
 		limiter:     newRateLimiter(100.0, 50.0),
+	}
+}
+
+// Close gracefully stops background workers and rate limiter timers
+func (s *Server) Close() {
+	if s.limiter != nil {
+		s.limiter.Close()
 	}
 }
 

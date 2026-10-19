@@ -365,13 +365,21 @@ static void handle_cancel(void const *instruction_data, ulong instruction_data_s
     clob_cancel_order_args_t const *args = (clob_cancel_order_args_t const *)instruction_data;
     ushort acc_idx = args->clob_account_idx;
 
-    if (!tsdk_is_account_idx_valid(acc_idx)) {
+    if (!tsdk_is_account_idx_valid(acc_idx) || !tsdk_account_exists(acc_idx)) {
+        tsdk_revert(CLOB_ERR_DATA_ACCESS_FAILED);
+    }
+
+    tsdk_account_meta_t const *meta = tsdk_get_account_meta(acc_idx);
+    if (meta->data_sz < sizeof(clob_state_t)) {
         tsdk_revert(CLOB_ERR_DATA_ACCESS_FAILED);
     }
 
     tsys_set_account_data_writable(acc_idx);
 
     clob_state_t *state = (clob_state_t *)tsdk_get_account_data_ptr(acc_idx);
+    if (state->version != 1) {
+        tsdk_revert(CLOB_ERR_DATA_ACCESS_FAILED);
+    }
     tn_pubkey_t const *fee_payer = &tsdk_get_txn()->hdr.v1.fee_payer_pubkey;
 
     for (int i = 0; i < CLOB_MAX_ORDERS_PER_SIDE; i++) {

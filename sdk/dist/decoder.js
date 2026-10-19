@@ -4,6 +4,17 @@
  */
 import { ORACLE_HEADER_SIZE, ORACLE_ENTRY_SIZE, MAX_ORACLE_SYMBOLS, KnownSymbolMap, RegimeNames, } from "./types.js";
 import { q64ToNumber, q64ToDecimalString } from "./math.js";
+const HEX_LUT = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
+function bytesToHex(bytes, start, end) {
+    if (typeof Buffer !== "undefined") {
+        return Buffer.from(bytes.subarray(start, end)).toString("hex");
+    }
+    let out = "";
+    for (let i = start; i < end; i++) {
+        out += HEX_LUT[bytes[i]];
+    }
+    return out;
+}
 /**
  * Deserializes raw Little-Endian binary bytes into an unpacked, indexed OracleState object.
  *
@@ -21,10 +32,7 @@ export function decodeOracleAccount(bytes, nowSec) {
         throw new Error(`Unsupported oracle state version: expected 1, got ${version}`);
     }
     // Authority pubkey (32 bytes at offset 4)
-    let authorityHex = "";
-    for (let i = 0; i < 32; i++) {
-        authorityHex += bytes[4 + i].toString(16).padStart(2, "0");
-    }
+    const authorityHex = bytesToHex(bytes, 4, 36);
     const circuitBreakerActive = view.getUint8(36) !== 0;
     const regimeId = view.getUint32(40, true);
     const lastUpdateTs = view.getUint32(44, true);

@@ -1,5 +1,7 @@
 package main
 
+import "thru_quant_core/api"
+
 type FeederState int
 
 const (
@@ -21,40 +23,7 @@ func (s FeederState) String() string {
 	}
 }
 
-var knownSymbols = map[string]uint32{
-	"BTCUSDT":   1,
-	"ETHUSDT":   2,
-	"SOLUSDT":   3,
-	"APTUSDT":   4,
-	"SUIUSDT":   5,
-	"BNBUSDT":   6,
-	"DOGEUSDT":  7,
-	"XRPUSDT":   8,
-	"AVAXUSDT":  9,
-	"LINKUSDT":  10,
-	"NEARUSDT":  11,
-	"ARBUSDT":   12,
-	"OPUSDT":    13,
-	"TIAUSDT":   14,
-	"INJUSDT":   15,
-	"SEIUSDT":   16,
-	"SUSDT":     17,
-	"UNIUSDT":   18,
-	"AAVEUSDT":  19,
-	"TAOUSDT":   20,
-	"PEPEUSDT":  21,
-	"SHIBUSDT":  22,
-	"WIFUSDT":   23,
-	"BONKUSDT":  24,
-	"RENDERUSDT": 25,
-	"FETUSDT":   26,
-	"FTMUSDT":   27,
-	"KASUSDT":   28,
-	"STXUSDT":   29,
-	"FILUSDT":   30,
-	"LTCUSDT":   31,
-	"BCHUSDT":   32,
-}
+var knownSymbols = api.ReverseSymbolMap
 
 type MarketRecord struct {
 	Timestamp float64 `json:"timestamp"`

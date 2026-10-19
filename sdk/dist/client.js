@@ -5,7 +5,8 @@
 import { decodeOracleBase64 } from "./decoder.js";
 import { evaluateRiskGate } from "./guards.js";
 const DEFAULT_ACCOUNT_ADDRESS = "taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN";
-const DEFAULT_DAEMON_URL = "http://localhost:8082";
+const DEFAULT_PROGRAM_ID = "taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR";
+const DEFAULT_DAEMON_URL = "http://localhost:8080";
 const DEFAULT_RPC_URL = "https://alphanet.thru.network/rpc";
 /**
  * Unified Oracle Client supporting direct Alphanet JSON-RPC and Local Go Daemon REST transports.
@@ -14,11 +15,13 @@ export class OracleClient {
     rpcUrl;
     daemonUrl;
     accountAddress;
+    programId;
     timeoutMs;
     constructor(options = {}) {
         this.rpcUrl = options.rpcUrl || DEFAULT_RPC_URL;
         this.daemonUrl = options.daemonUrl || DEFAULT_DAEMON_URL;
         this.accountAddress = options.accountAddress || DEFAULT_ACCOUNT_ADDRESS;
+        this.programId = options.programId || DEFAULT_PROGRAM_ID;
         this.timeoutMs = options.timeoutMs || 5000;
     }
     /**
@@ -128,6 +131,9 @@ export class OracleClient {
         const data = (await res.json());
         if (data.error) {
             throw new Error(`Thru RPC error: ${data.error.message}`);
+        }
+        if (data.result?.owner && data.result.owner !== this.programId) {
+            throw new Error(`Thru RPC security check failed: account owner '${data.result.owner}' does not match expected program '${this.programId}'`);
         }
         let b64 = "";
         if (typeof data.result?.data === "string") {

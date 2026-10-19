@@ -125,6 +125,7 @@ export interface OracleClientOptions {
     rpcUrl?: string;
     daemonUrl?: string;
     accountAddress?: string;
+    programId?: string;
     timeoutMs?: number;
 }
 //# sourceMappingURL=types.d.ts.map

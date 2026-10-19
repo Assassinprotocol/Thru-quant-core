@@ -101,6 +101,7 @@ func main() {
 	if err := httpServer.Shutdown(ctx); err != nil {
 		log.Printf("[THRU:API:ERROR] Server shutdown error: %v", err)
 	}
+	server.Close()
 	log.Println("[THRU:API] Daemon stopped cleanly.")
 }
 

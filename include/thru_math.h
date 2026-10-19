@@ -18,7 +18,6 @@ typedef __uint128_t uq64_t;
 #define Q64_MAX               ((((q64_t)1) << 126) - 1 + (((q64_t)1) << 126))
 #define Q64_MIN               (-Q64_MAX - 1)
 
-#define Q64_PI                ((((q64_t)3) << Q64_SCALE_BITS) | ((q64_t)0x243F6A8885A308D3ULL))
 #define Q64_E                 ((((q64_t)2) << Q64_SCALE_BITS) | ((q64_t)0xB7E151628AED2A6BULL))
 #define Q64_LN2               ((q64_t)0xB17217F7D1CF79ABULL)
 

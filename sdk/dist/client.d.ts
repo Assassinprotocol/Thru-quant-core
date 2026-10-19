@@ -10,6 +10,7 @@ export declare class OracleClient {
     private rpcUrl;
     private daemonUrl;
     private accountAddress;
+    private programId;
     private timeoutMs;
     constructor(options?: OracleClientOptions);
     /**
