@@ -28,7 +28,24 @@
 
 ---
 
-## 3. Scope Boundaries & Disclaimers
+## 3. Supported Feed Universe (Core-6 on Betanet)
+
+Under Tier T0 on Betanet, only the following Core-6 asset pairs are officially supported:
+
+| Symbol ID | Asset Pair | Ticker | Status on Betanet | Ingestion Mode |
+|:---:|---|---|:---:|---|
+| 1 | BTC / USD | `BTCUSDT` | **Supported** | 4-Venue Quorum |
+| 2 | ETH / USD | `ETHUSDT` | **Supported** | 4-Venue Quorum |
+| 3 | SOL / USD | `SOLUSDT` | **Supported** | 4-Venue Quorum |
+| - | USDT / USD | `USDTUSD` | **Supported** | Multi-venue Stablecoin |
+| - | USDC / USD | `USDCUSD` | **Supported** | Multi-venue Stablecoin |
+| - | WTHRU / USD | `WTHRUUSD` | **Supported (Pending AMM)** | ThruSwap AMM pool |
+
+*Note on legacy slots:* Other historical slots (IDs 4–16, 18–32) remain for wire-compatibility with v1 binary decoders, but are classified as untracked under Tier T0.
+
+---
+
+## 4. Scope Boundaries & Disclaimers
 
 1. **Non-Custodial CLOB:** The CLOB orderbook located in `research/clob/` is strictly a research prototype. It does not implement token custody or balance escrow.
 2. **Oracle Reliability:** Current Tier T0 relies on a single publisher key and off-chain quorum. Migration to on-chain consensus (Tier T1/T2) is underway in Phase 2.

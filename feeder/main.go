@@ -116,12 +116,34 @@ func main() {
 	programPubkey := flag.String("program", "", "Target Market Oracle program public key")
 	oracleAccount := flag.String("account", "", "Target Oracle storage account address")
 	feePayer := flag.String("fee-payer", "0xhansen", "Fee payer key name from config")
+	network := flag.String("network", "betanet", "Target Thru network profile")
 	once := flag.Bool("once", false, "Run once and exit")
 	mode := flag.String("mode", "local", "Feeder mode: 'local' (read disk files) or 'quorum' (ingest from multi-venue API sources)")
 	venues := flag.String("venues", "binance,coinbase,okx", "Comma-separated list of venue sources for quorum mode")
 	quorumCollarBps := flag.Int("quorum-collar-bps", 150, "Maximum basis point deviation allowable between venues for consensus")
 	quorumTimeout := flag.Duration("quorum-timeout", 2*time.Second, "Timeout per venue HTTP request")
 	flag.Parse()
+
+	if *programPubkey == "" || *oracleAccount == "" {
+		if depBytes, err := os.ReadFile("deploy/deployed.json"); err == nil {
+			var depData struct {
+				Deployments map[string]struct {
+					ProgramID      *string `json:"program_id"`
+					StateAccountID *string `json:"state_account_id"`
+				} `json:"deployments"`
+			}
+			if json.Unmarshal(depBytes, &depData) == nil {
+				if d, ok := depData.Deployments[*network]; ok {
+					if *programPubkey == "" && d.ProgramID != nil {
+						*programPubkey = *d.ProgramID
+					}
+					if *oracleAccount == "" && d.StateAccountID != nil {
+						*oracleAccount = *d.StateAccountID
+					}
+				}
+			}
+		}
+	}
 
 	var quorumSources []quorum.VenueSource
 	var quorumAgg *quorum.Aggregator
@@ -175,7 +197,7 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		cmd := exec.CommandContext(ctx, "thru", "txn", "execute", *programPubkey, hexPayload,
+		cmd := exec.CommandContext(ctx, "thru", "--network", *network, "txn", "execute", *programPubkey, hexPayload,
 			"--readwrite-accounts", *oracleAccount,
 			"--fee-payer", *feePayer,
 			"--state-units", "10",
@@ -348,7 +370,7 @@ func main() {
 					log.Printf("feeder: dry-run hex: %s...", hexPayload[:min(64, len(hexPayload))])
 				} else if *programPubkey != "" && *oracleAccount != "" {
 					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-					cmd := exec.CommandContext(ctx, "thru", "txn", "execute", *programPubkey, hexPayload,
+					cmd := exec.CommandContext(ctx, "thru", "--network", *network, "txn", "execute", *programPubkey, hexPayload,
 						"--readwrite-accounts", *oracleAccount,
 						"--fee-payer", *feePayer,
 						"--state-units", "10",

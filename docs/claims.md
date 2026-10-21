@@ -31,7 +31,16 @@ All claims are classified using the repository's **6-Tier Verification Hierarchy
 
 ## On-Chain Program Registry
 
-### Alphanet (RPC: `https://rpc.alphanet.thru.org`)
+### Active Target: Betanet (RPC: `https://rpc.betanet.thru.org`, Chain ID 2)
+```text
+Target Environment:      Thru Betanet (Slot 2,598,462+)
+Registry File:           deploy/deployed.json
+Supported Feeds:         Core-6 (BTC, ETH, SOL, USDT, USDC, WTHRU)
+Trust Tier:              Tier T0 (Experimental, Single-Publisher)
+Evidence Directory:      docs/evidence/betanet/
+```
+
+### Archived Evidence: Alphanet (Historic Slot 7743340)
 ```text
 Market Oracle Program:   taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR
 Market Oracle ABI:       ta5vSXl_w-ELG9NgGLQFkWhBgbbN0zfjcBNy3QzeYtNBZ4
@@ -40,4 +49,5 @@ Market Oracle State:     taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN (948 Byt
 CLOB Engine Program:     ta-0HvoxEgLocbOZNZ9esb7A9qGfKvdwPeOr1eHtDRhP37
 CLOB Engine ABI:         tacZqSWnYV00RwdYVkvkZU-7CEC0eGqAgM5SgknMVjH0Xb
 CLOB Engine State:       talxErrmxdDsQU7VFoIo4l7NVs0q9RgK6dd4Gc0HV59xbU (37,924 Bytes)
+Evidence Directory:      docs/evidence/alphanet/
 ```
