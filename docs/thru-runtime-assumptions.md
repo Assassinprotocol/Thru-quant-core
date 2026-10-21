@@ -1,6 +1,6 @@
 # ThruVM Runtime Semantics & Assumptions
 
-**Target:** RISC-V 64-bit (RV64IMAFD) / ThruVM  
+**Target:** RISC-V 64-bit (`rv64imc_zba_zbb_zbc_zbs_zknh`, `lp64`) / ThruVM (strictly without A/F/D hardware floating-point)  
 **SDK:** `tn_sdk.h`, `tn_sdk_syscall.h`, `tn_sdk.c` (Thru C Program SDK v0.4+)  
 
 ---
@@ -30,9 +30,12 @@ This document specifies the five ThruVM runtime execution assumptions relied upo
 
 ---
 
-### Assumption 2: Block Context Availability & Monotonicity (`tsdk_get_current_block_ctx`)
+### Assumption 2: Block Context Availability & Canonical Clock Semantics (`tsdk_get_current_block_ctx`)
 
-- **Contract Dependency:** The Oracle evaluates freshness invariants (`max_source_time <= block_time + 120s`, `block_time >= max_source_time - 120s`, and lockout breaker duration).
+- **Canonical Time Mechanism:**
+  - **On-Chain Time:** `publish_slot` (uint64 block height/slot) combined with `block_time` (uint32 Unix timestamp in seconds from block context).
+  - **Off-Chain Quote Time:** `source_ts` (uint32 Unix timestamp in seconds at quote ingestion).
+  - **Permissible Skew Window:** Ingestion strictly enforces $source\_ts \in [block\_time - 30\text{s}, block\_time + 5\text{s}]$. Quotes older than 30s regress with `ORACLE_ERR_TIMESTAMP_REGRESSED` (`0x200E`); quotes skewed > 5s into the future or clock context missing (`block_time == 0`) fail-closed with `ORACLE_ERR_CLOCK_UNAVAILABLE` (`0x200D`).
 - **SDK Implementation:**
   ```c
   // tn_sdk.c:48-51
@@ -126,3 +129,19 @@ This document specifies the five ThruVM runtime execution assumptions relied upo
 | **A3: Write Isolation** | Host kernel enforces `owner == program` | Program verification in Go API & TS SDK |
 | **A4: Account Binding** | Address derivation binds `ProgramID` | Strict account size check & magic header verification |
 | **A5: Signer Authority** | Fee payer signature cryptographically verified | Strict authority match on `RESUME` and `REBASE` |
+
+---
+
+## 4. Empirical Test Verification (WP-06)
+
+Automated test harness `tests/test_runtime_assumptions.py` validates all five core runtime assumptions in both deterministic simulation and live Betanet probe modes:
+
+| Test Case | Target Invariant | Execution Mode | Verification Result |
+|---|---|:---:|:---:|
+| `test_a1_rollback_on_revert` | Zero state pollution after transaction abort | Offline Mock | **PASS** (byte-for-byte identical rollback) |
+| `test_a2_clock_semantics_and_skew_bounds` | Monotonic clock, skew gate $[T-30\text{s}, T+5\text{s}]$, fail-closed on $T=0$ | Offline Mock | **PASS** (rejection codes `0x200D` & `0x200E` verified) |
+| `test_a3_ownership_and_write_isolation` | Kernel write-fault on unowned account mutation | Offline Mock | **PASS** (rejection code `0xBAD0A174` verified) |
+| `test_a4_account_collision_resistance` | Deterministic BLAKE3/SHA256 address orthogonal per program | Offline Mock | **PASS** (address separation confirmed) |
+| `test_a5_signer_authority_semantics` | Single-signer fee payer authority binding for admin instructions | Offline Mock | **PASS** (unauthorized caller rejected) |
+| `test_live_betanet_rpc_context` | Live Betanet block context query & slot progression | Live RPC | **PASS** (Betanet slot > 2.65M confirmed) |
+
