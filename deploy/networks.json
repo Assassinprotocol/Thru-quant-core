@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "default_network": "betanet",
+  "networks": {
+    "betanet": {
+      "name": "Thru Betanet",
+      "chain_id": 2,
+      "rpc_urls": [
+        "https://rpc.betanet.thru.org"
+      ],
+      "explorer_url": "https://explorer.betanet.thru.org",
+      "core_programs": {
+        "uploader": "taUPLMH5QYOAT4ktwQeO7DXAEKtqBhYehalNGf5BJFQDYq",
+        "manager": "taMGRmPoSTkUtF6UlmCIq58K8OYsnXshOMPdobxxHytqmu",
+        "abi_manager": "taABII8WXcPaPIt47cXjOBbyoBUGBDXznAMHorVMeok3mw",
+        "token": "taTOKENKRgcl3vO0yVhftATDbXuhgWcfaaxv9xpEEdMdUE",
+        "wthru": "taWTHRUBelpONhTRjYc7n4OovodUsUtZKTIuREWAi9G9lm",
+        "name_service": "taNAMEqRNEDeMWp0cDYmMVdZyTZiF5NyGDR9zTwH42rWQG",
+        "registrar": "taREGMtyyVIMr27zDpvN0aRiSS2aOVffM9cZCsc0Xomaxw"
+      },
+      "last_verified_slot": 2598462,
+      "last_verified_date": "2026-10-21",
+      "status": "active"
+    },
+    "alphanet": {
+      "name": "Thru Alphanet",
+      "chain_id": 1,
+      "rpc_urls": [
+        "https://rpc.alphanet.thru.org"
+      ],
+      "explorer_url": "https://explorer.alphanet.thru.org",
+      "last_verified_slot": 690034,
+      "last_verified_date": "2026-10-21",
+      "status": "archived_reset",
+      "notes": "Alphanet was reset to slot 0 in Oct 2026; slot ~690k active. Historic slot 7.74M+ accounts pruned."
+    }
+  }
+}

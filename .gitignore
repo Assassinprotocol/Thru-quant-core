@@ -32,4 +32,6 @@ sdk/dist/
 # Runtime data & logs
 data/
 *.log
+__pycache__/
+*.pyc
 

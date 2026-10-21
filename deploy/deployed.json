@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "deployments": {
+    "betanet": {
+      "network": "betanet",
+      "chain_id": 2,
+      "program_id": null,
+      "program_seed": "market_oracle_v1",
+      "abi_id": null,
+      "state_account_id": null,
+      "deployed_slot": null,
+      "deployed_at": null,
+      "program_sha256": null,
+      "status": "uninitialized",
+      "notes": "Target for WP-05 redeployment"
+    },
+    "alphanet": {
+      "network": "alphanet",
+      "chain_id": 1,
+      "program_id": "taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR",
+      "program_seed": "thru_market_oracle",
+      "abi_id": null,
+      "state_account_id": "taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN",
+      "deployed_slot": 7743340,
+      "deployed_at": "2026-10-14T08:58:21Z",
+      "program_sha256": "420056f7fe70bb3dbfd394f1bea6d6f2f0490f15602323b0a29a378cf723742d",
+      "status": "archived_reset",
+      "notes": "Historical deployment on Alphanet prior to network reset. Preserved as offline verification fixture."
+    }
+  }
+}

@@ -19,6 +19,7 @@ make fuzz-contracts
 make lint-c
 make lint-claims
 make verify-claims
+make test-deploy
 make coverage
 make test-api
 make build-api

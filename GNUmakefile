@@ -59,6 +59,9 @@ lint-claims:
 verify-claims:
 	bash scripts/verify_onchain_claims.sh
 
+test-deploy:
+	python3 tests/test_deploy_and_reset.py
+
 test-api:
 	go test -v ./...
 

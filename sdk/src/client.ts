@@ -1,8 +1,3 @@
-/**
- * @file client.ts
- * @description High-level dual-transport client for Thru Quant Oracle (Alphanet RPC + Local Daemon REST).
- */
-
 import {
   type OracleClientOptions,
   type OracleState,
@@ -18,11 +13,8 @@ const DEFAULT_ACCOUNT_ADDRESS =
 const DEFAULT_PROGRAM_ID =
   "taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR";
 const DEFAULT_DAEMON_URL = "http://localhost:8080";
-const DEFAULT_RPC_URL = "https://alphanet.thru.network/rpc";
+const DEFAULT_RPC_URL = "https://rpc.betanet.thru.org";
 
-/**
- * Unified Oracle Client supporting direct Alphanet JSON-RPC and Local Go Daemon REST transports.
- */
 export class OracleClient {
   private rpcUrl: string;
   private daemonUrl: string;
@@ -45,7 +37,6 @@ export class OracleClient {
     try {
       return await this.fetchFromDaemon();
     } catch (_daemonErr) {
-      // Automatic transparent failover to direct Thru Alphanet JSON-RPC
       return await this.fetchFromRpc();
     }
   }
