@@ -190,6 +190,7 @@ func TestHandleMetrics(t *testing.T) {
 	srv.RegisterRoutes(mux)
 
 	req := httptest.NewRequest("GET", "/metrics", nil)
+	req.RemoteAddr = "127.0.0.1:1234"
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -204,6 +205,9 @@ func TestHandleMetrics(t *testing.T) {
 		"api_oracle_updates_total",
 		"api_stream_clients_active",
 		"api_circuit_breaker_active",
+		"api_oracle_slot",
+		"api_feed_age_slots",
+		"api_tracked_assets",
 	}
 
 	for _, m := range expectedMetrics {

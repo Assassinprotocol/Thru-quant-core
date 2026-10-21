@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -44,12 +45,30 @@ func main() {
 	staticDir := flag.String("static-dir", "visualizer", "Path to visualizer web directory")
 	pollInterval := flag.Duration("poll-interval", 5*time.Second, "On-chain state refresh interval")
 	allowSnapshotFallback := flag.Bool("allow-snapshot-fallback", false, "Allow local snapshot failover in development mode")
+	trustedProxies := flag.String("trusted-proxies", "", "Comma-separated list of trusted upstream proxy CIDRs (e.g. 127.0.0.1/32,10.0.0.0/8)")
+	metricsToken := flag.String("metrics-token", os.Getenv("THRU_METRICS_TOKEN"), "Bearer token for external /metrics access (env: THRU_METRICS_TOKEN)")
+	corsOrigins := flag.String("cors-origins", "*", "Comma-separated list of allowed CORS origins")
+	maxSSEPerIP := flag.Int("max-sse-per-ip", 4, "Maximum active SSE stream clients per IP")
+	maxSSEGlobal := flag.Int("max-sse-global", 256, "Maximum active SSE stream clients globally")
 	flag.Parse()
 
 	log.Printf("[THRU:API] Starting Thru Quant Oracle API Daemon on :%s", *port)
 	log.Printf("[THRU:API] Target Network: %s | Program: %s | Account: %s", *network, *programAddr, *oracleAccount)
 
 	server := api.NewServer(*programAddr, *oracleAccount, *network, *staticDir)
+	if *trustedProxies != "" {
+		if err := server.SetTrustedProxies(strings.Split(*trustedProxies, ",")); err != nil {
+			log.Fatalf("[THRU:API:FATAL] Invalid trusted-proxies: %v", err)
+		}
+	}
+	if *metricsToken != "" {
+		server.SetMetricsToken(*metricsToken)
+	}
+	if *corsOrigins != "" {
+		server.SetCORSOrigins(strings.Split(*corsOrigins, ","))
+	}
+	server.SetSSELimits(*maxSSEGlobal, *maxSSEPerIP)
+
 	mux := http.NewServeMux()
 	server.RegisterRoutes(mux)
 

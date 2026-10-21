@@ -1,10 +1,12 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,14 +24,20 @@ type rateLimiter struct {
 	visitors    map[string]*visitor
 	capacity    float64
 	rate        float64
+	maxVisitors int
 	stopCleanup chan struct{}
 }
 
-func newRateLimiter(capacity, rate float64) *rateLimiter {
+func newRateLimiter(capacity, rate float64, maxVisitors ...int) *rateLimiter {
+	max := 10000
+	if len(maxVisitors) > 0 && maxVisitors[0] > 0 {
+		max = maxVisitors[0]
+	}
 	rl := &rateLimiter{
 		visitors:    make(map[string]*visitor),
 		capacity:    capacity,
 		rate:        rate,
+		maxVisitors: max,
 		stopCleanup: make(chan struct{}),
 	}
 	go rl.cleanupLoop()
@@ -75,6 +83,16 @@ func (rl *rateLimiter) allow(ip string) bool {
 	now := time.Now()
 	v, exists := rl.visitors[ip]
 	if !exists {
+		if len(rl.visitors) >= rl.maxVisitors {
+			for k, val := range rl.visitors {
+				if now.Sub(val.lastSeen) > time.Minute {
+					delete(rl.visitors, k)
+				}
+			}
+			if len(rl.visitors) >= rl.maxVisitors {
+				return false
+			}
+		}
 		rl.visitors[ip] = &visitor{
 			tokens:   rl.capacity - 1.0,
 			lastSeen: now,
@@ -102,7 +120,8 @@ type Server struct {
 	mu                       sync.RWMutex
 	state                    *OracleState
 	history                  map[string][]float64
-	subscribers              map[chan []byte]bool
+	subscribers              map[chan []byte]string
+	subscribersByIP          map[string]int
 	subMu                    sync.Mutex
 	startTime                time.Time
 	programAddr              string
@@ -110,6 +129,11 @@ type Server struct {
 	network                  string
 	staticDir                string
 	limiter                  *rateLimiter
+	trustedProxies           []*net.IPNet
+	metricsToken             string
+	corsOrigins              []string
+	maxSSEGlobal             int
+	maxSSEPerIP              int
 	requestsTotal            atomic.Uint64
 	rpcFailuresTotal         atomic.Uint64
 	oracleUpdatesTotal       atomic.Uint64
@@ -120,14 +144,18 @@ type Server struct {
 // NewServer creates a new instance of the API server
 func NewServer(programAddr, accountAddr, network, staticDir string) *Server {
 	return &Server{
-		history:     make(map[string][]float64),
-		subscribers: make(map[chan []byte]bool),
-		startTime:   time.Now(),
-		programAddr: programAddr,
-		accountAddr: accountAddr,
-		network:     network,
-		staticDir:   staticDir,
-		limiter:     newRateLimiter(100.0, 50.0),
+		history:         make(map[string][]float64),
+		subscribers:     make(map[chan []byte]string),
+		subscribersByIP: make(map[string]int),
+		startTime:       time.Now(),
+		programAddr:     programAddr,
+		accountAddr:     accountAddr,
+		network:         network,
+		staticDir:       staticDir,
+		limiter:         newRateLimiter(100.0, 50.0, 10000),
+		corsOrigins:     []string{"*"},
+		maxSSEGlobal:    256,
+		maxSSEPerIP:     4,
 	}
 }
 
@@ -151,7 +179,6 @@ func (s *Server) UpdateState(newState *OracleState) {
 		s.circuitBreakerTripsTotal.Add(1)
 	}
 
-	// Append to rolling price history (max 30 points per asset for charts)
 	for _, entry := range newState.Entries {
 		h := s.history[entry.Symbol]
 		h = append(h, entry.Price)
@@ -162,7 +189,6 @@ func (s *Server) UpdateState(newState *OracleState) {
 	}
 	s.mu.Unlock()
 
-	// Broadcast update to all connected SSE clients
 	payload, err := json.Marshal(newState)
 	if err == nil {
 		s.subMu.Lock()
@@ -170,7 +196,6 @@ func (s *Server) UpdateState(newState *OracleState) {
 			select {
 			case ch <- payload:
 			default:
-				// Avoid blocking if subscriber buffer is full
 			}
 		}
 		s.subMu.Unlock()
@@ -179,19 +204,122 @@ func (s *Server) UpdateState(newState *OracleState) {
 
 const MaxSSEClients = 256
 
+// SetTrustedProxies configures trusted upstream proxy CIDRs for X-Forwarded-For parsing
+func (s *Server) SetTrustedProxies(cidrs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var parsed []*net.IPNet
+	for _, raw := range cidrs {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		if !strings.Contains(raw, "/") {
+			if ip := net.ParseIP(raw); ip != nil {
+				if ip.To4() != nil {
+					raw += "/32"
+				} else {
+					raw += "/128"
+				}
+			}
+		}
+		_, ipNet, err := net.ParseCIDR(raw)
+		if err != nil {
+			return fmt.Errorf("invalid trusted proxy CIDR %q: %w", raw, err)
+		}
+		parsed = append(parsed, ipNet)
+	}
+	s.trustedProxies = parsed
+	return nil
+}
+
+// SetMetricsToken sets the required bearer token for /metrics when accessed externally
+func (s *Server) SetMetricsToken(token string) {
+	s.mu.Lock()
+	s.metricsToken = strings.TrimSpace(token)
+	s.mu.Unlock()
+}
+
+// SetCORSOrigins sets allowed CORS origins
+func (s *Server) SetCORSOrigins(origins []string) {
+	s.mu.Lock()
+	s.corsOrigins = origins
+	s.mu.Unlock()
+}
+
+// SetSSELimits configures global and per-IP concurrent SSE stream caps
+func (s *Server) SetSSELimits(global, perIP int) {
+	s.subMu.Lock()
+	if global > 0 {
+		s.maxSSEGlobal = global
+	}
+	if perIP > 0 {
+		s.maxSSEPerIP = perIP
+	}
+	s.subMu.Unlock()
+}
+
+func (s *Server) clientIP(r *http.Request) string {
+	remoteHost, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		remoteHost = r.RemoteAddr
+	}
+
+	remoteIP := net.ParseIP(remoteHost)
+	if remoteIP == nil {
+		return remoteHost
+	}
+
+	s.mu.RLock()
+	trusted := false
+	for _, cidr := range s.trustedProxies {
+		if cidr.Contains(remoteIP) {
+			trusted = true
+			break
+		}
+	}
+	s.mu.RUnlock()
+
+	if trusted {
+		xff := r.Header.Get("X-Forwarded-For")
+		if xff != "" {
+			parts := strings.Split(xff, ",")
+			clientCandidate := strings.TrimSpace(parts[0])
+			if parsed := net.ParseIP(clientCandidate); parsed != nil {
+				return parsed.String()
+			}
+		}
+	}
+
+	return remoteIP.String()
+}
+
+func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+		}
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		next(w, r)
+	}
+}
+
 // RegisterRoutes registers all REST and SSE endpoints with the given ServeMux
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/health", s.withCORS(s.withRateLimit(s.handleHealth)))
-	mux.HandleFunc("/ready", s.withCORS(s.withRateLimit(s.handleReady)))
-	mux.HandleFunc("/v1/status", s.withCORS(s.withRateLimit(s.handleStatus)))
-	mux.HandleFunc("/v1/oracle/latest", s.withCORS(s.withRateLimit(s.handleOracleLatest)))
-	mux.HandleFunc("/v1/oracle/history", s.withCORS(s.withRateLimit(s.handleOracleHistory)))
-	mux.HandleFunc("/v1/stream", s.withCORS(s.withRateLimit(s.handleStream)))
-	mux.HandleFunc("/metrics", s.handleMetrics)
+	mux.HandleFunc("/health", s.withSecurityHeaders(s.withCORS(s.withRateLimit(s.handleHealth))))
+	mux.HandleFunc("/ready", s.withSecurityHeaders(s.withCORS(s.withRateLimit(s.handleReady))))
+	mux.HandleFunc("/v1/status", s.withSecurityHeaders(s.withCORS(s.withRateLimit(s.handleStatus))))
+	mux.HandleFunc("/v1/oracle/latest", s.withSecurityHeaders(s.withCORS(s.withRateLimit(s.handleOracleLatest))))
+	mux.HandleFunc("/v1/oracle/history", s.withSecurityHeaders(s.withCORS(s.withRateLimit(s.handleOracleHistory))))
+	mux.HandleFunc("/v1/stream", s.withSecurityHeaders(s.withCORS(s.withRateLimit(s.handleStream))))
+	mux.HandleFunc("/metrics", s.withSecurityHeaders(s.withRateLimit(s.handleMetrics)))
 
 	if s.staticDir != "" {
 		fs := http.FileServer(http.Dir(s.staticDir))
-		mux.Handle("/", fs)
+		mux.Handle("/", s.withSecurityHeaders(fs.ServeHTTP))
 	}
 }
 
@@ -207,14 +335,7 @@ func (s *Server) RecordStaleDiscard() {
 
 func (s *Server) withRateLimit(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := r.Header.Get("X-Forwarded-For")
-		if ip == "" {
-			var err error
-			ip, _, err = net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				ip = r.RemoteAddr
-			}
-		}
+		ip := s.clientIP(r)
 
 		if !s.limiter.allow(ip) {
 			w.Header().Set("Retry-After", "1")
@@ -231,12 +352,35 @@ func (s *Server) withRateLimit(next http.HandlerFunc) http.HandlerFunc {
 func (s *Server) withCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.requestsTotal.Add(1)
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		origin := r.Header.Get("Origin")
+		allowedOrigin := ""
+
+		s.mu.RLock()
+		origins := s.corsOrigins
+		s.mu.RUnlock()
+
+		for _, o := range origins {
+			if o == "*" || o == origin {
+				allowedOrigin = o
+				break
+			}
+		}
+
+		if allowedOrigin != "" {
+			if allowedOrigin == "*" {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+			}
+			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+		}
 
 		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		next(w, r)
@@ -431,7 +575,6 @@ func (s *Server) handleOracleLatest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update feed age dynamically
 	nowSec := uint32(time.Now().Unix())
 	if nowSec > s.state.LastUpdateTS && s.state.LastUpdateTS > 0 {
 		s.state.FeedAgeSec = nowSec - s.state.LastUpdateTS
@@ -464,33 +607,47 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ip := s.clientIP(r)
+
+	s.subMu.Lock()
+	if len(s.subscribers) >= s.maxSSEGlobal {
+		s.subMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"error":"maximum global SSE subscriber limit reached"}`))
+		return
+	}
+	if s.subscribersByIP[ip] >= s.maxSSEPerIP {
+		s.subMu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"error":"maximum per-IP SSE subscriber limit reached"}`))
+		return
+	}
+
+	subChan := make(chan []byte, 16)
+	s.subscribers[subChan] = ip
+	s.subscribersByIP[ip]++
+	s.subMu.Unlock()
+
+	defer func() {
+		s.subMu.Lock()
+		delete(s.subscribers, subChan)
+		s.subscribersByIP[ip]--
+		if s.subscribersByIP[ip] <= 0 {
+			delete(s.subscribersByIP, ip)
+		}
+		close(subChan)
+		s.subMu.Unlock()
+	}()
+
 	rc := http.NewResponseController(w)
-	// Clear the server-wide WriteTimeout so persistent SSE streaming connections are not killed at 15s
 	_ = rc.SetWriteDeadline(time.Time{})
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	subChan := make(chan []byte, 16)
-
-	s.subMu.Lock()
-	if len(s.subscribers) >= MaxSSEClients {
-		s.subMu.Unlock()
-		http.Error(w, `{"error":"maximum SSE subscriber limit reached (256)"}`, http.StatusServiceUnavailable)
-		return
-	}
-	s.subscribers[subChan] = true
-	s.subMu.Unlock()
-
-	defer func() {
-		s.subMu.Lock()
-		delete(s.subscribers, subChan)
-		close(subChan)
-		s.subMu.Unlock()
-	}()
-
-	// Send initial state immediately
 	s.mu.RLock()
 	if s.state != nil {
 		initialBytes, err := json.Marshal(s.state)
@@ -522,9 +679,41 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	remoteHost, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		remoteHost = r.RemoteAddr
+	}
+	remoteIP := net.ParseIP(remoteHost)
+	isLoopback := remoteIP != nil && remoteIP.IsLoopback()
+
+	s.mu.RLock()
+	token := s.metricsToken
+	s.mu.RUnlock()
+
+	authorized := isLoopback
+	if !authorized && token != "" {
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			provided := strings.TrimPrefix(authHeader, "Bearer ")
+			if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1 {
+				authorized = true
+			}
+		}
+	}
+
+	if !authorized {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="metrics"`)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error":"unauthorized access to operational metrics"}`))
+		return
+	}
+
 	s.mu.RLock()
 	feedAge := uint32(0)
 	breakerActive := 0
+	slot := uint64(0)
+	trackedAssets := 0
 	if s.state != nil {
 		nowSec := uint32(time.Now().Unix())
 		if nowSec > s.state.LastUpdateTS && s.state.LastUpdateTS > 0 {
@@ -533,6 +722,8 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		if s.state.CircuitBreakerActive {
 			breakerActive = 1
 		}
+		slot = s.state.Slot
+		trackedAssets = len(s.state.Entries)
 	}
 	s.mu.RUnlock()
 
@@ -564,6 +755,18 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "# HELP api_feed_age_seconds Current age of the oracle state in seconds\n")
 	fmt.Fprintf(w, "# TYPE api_feed_age_seconds gauge\n")
 	fmt.Fprintf(w, "api_feed_age_seconds %d\n\n", feedAge)
+
+	fmt.Fprintf(w, "# HELP api_feed_age_slots Feed age measured in slot units (average 1 slot/sec)\n")
+	fmt.Fprintf(w, "# TYPE api_feed_age_slots gauge\n")
+	fmt.Fprintf(w, "api_feed_age_slots %d\n\n", feedAge)
+
+	fmt.Fprintf(w, "# HELP api_oracle_slot On-chain slot recorded in current oracle state\n")
+	fmt.Fprintf(w, "# TYPE api_oracle_slot gauge\n")
+	fmt.Fprintf(w, "api_oracle_slot %d\n\n", slot)
+
+	fmt.Fprintf(w, "# HELP api_tracked_assets Number of actively quoted assets\n")
+	fmt.Fprintf(w, "# TYPE api_tracked_assets gauge\n")
+	fmt.Fprintf(w, "api_tracked_assets %d\n\n", trackedAssets)
 
 	fmt.Fprintf(w, "# HELP api_circuit_breaker_active Whether circuit breaker is tripped (1) or normal (0)\n")
 	fmt.Fprintf(w, "# TYPE api_circuit_breaker_active gauge\n")
