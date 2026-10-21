@@ -133,7 +133,7 @@ jobs:
         run: |
           npm install -g thru@0.4.2
           thru dev toolchain install
-          thru dev sdk install
+          thru dev sdk install c
 
       - name: Verify ABI Codegen Parity
         run: |
