@@ -11,7 +11,6 @@
 
 #include "thru_math.h"
 #include "../src/market_oracle.h"
-#include "../src/clob_engine.h"
 
 #define MOCK_MAX_ACCOUNTS (8)
 #define MOCK_STORAGE_SIZE (65536)
@@ -129,9 +128,6 @@ static void reset_mock_env(void) {
 #include "../src/market_oracle.c"
 #undef start
 
-#define start clob_contract_start
-#include "../src/clob_engine.c"
-#undef start
 
 /* Fast deterministic PRNG (xorshift64) */
 static uint64_t g_prng_state = 0x853c49e6748fea9bULL;
@@ -227,55 +223,7 @@ int main(int argc, char **argv) {
     printf("  [OK] Oracle parser fuzzed %ld times: %ld reverts safely caught, %ld returns\n",
            total_iterations, oracle_reverts, oracle_returns);
 
-    /* -------------------------------------------------------------------------
-     * 2. Fuzzing CLOB Engine Contract Parser
-     * ------------------------------------------------------------------------- */
-    reset_mock_env();
 
-    /* Initialize account 2 as a valid CLOB account */
-    g_accounts[2].exists = true;
-    g_accounts[2].writable = true;
-    g_accounts[2].data_sz = sizeof(clob_state_t);
-    clob_state_t *clob_state = (clob_state_t *)g_accounts[2].data;
-    clob_state->version = 1;
-    clob_state->market_type = 0;
-    clob_state->min_notional = 1;
-    clob_state->next_order_id = 1;
-    clob_state->best_bid_idx = -1;
-    clob_state->best_ask_idx = -1;
-
-    for (long i = 0; i < total_iterations; i++) {
-        size_t sz = (size_t)(rand_u32() % 2048);
-        fill_random(payload, sz);
-
-        if (i % 3 == 0 && sz >= sizeof(clob_place_order_args_t)) {
-            clob_place_order_args_t *args = (clob_place_order_args_t *)payload;
-            args->instruction_type = rand_u32() % 5;
-            args->clob_account_idx = (uint16_t)(rand_u32() % 4);
-            args->side = (uint8_t)(rand_u32() % 3);
-            args->price_hi = rand_u32() % 100000;
-            args->price_lo = rand_u32();
-            args->qty = rand_u32() % 1000;
-        }
-
-        g_has_reverted = false;
-        g_has_returned = false;
-        g_last_revert_code = 0UL;
-
-        if (setjmp(g_test_jmp) == 0) {
-            clob_contract_start(payload, (ulong)sz);
-        }
-
-        if (g_has_reverted) {
-            clob_reverts++;
-        } else if (g_has_returned) {
-            clob_returns++;
-        }
-    }
-
-    printf("  [OK] CLOB parser fuzzed %ld times: %ld reverts safely caught, %ld returns\n",
-           total_iterations, clob_reverts, clob_returns);
-
-    printf("=== CONTRACT FUZZING SUCCEEDED (0 CRASHES, 0 ASAN ERRORS) ===\n");
+        printf("=== CONTRACT FUZZING SUCCEEDED (0 CRASHES, 0 ASAN ERRORS) ===\n");
     return 0;
 }

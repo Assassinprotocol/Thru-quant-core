@@ -57,7 +57,7 @@ import { OracleClient, evaluateRiskGate } from "./sdk/dist/index.js";
 const client = new OracleClient();
 const state = await client.getLatestState();
 
-// Evaluate BTC against institutional risk policies
+// Evaluate BTC against pre-trade risk policies
 const risk = evaluateRiskGate(state, "BTCUSDT", {
   maxAgeSec: 120,          // Reject if data older than 2 minutes
   maxVolatilityBps: 300,   // Volatility spike limit (3.00%)

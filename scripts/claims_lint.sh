@@ -11,7 +11,7 @@ ERRORS=0
 echo "=== [1/4] Scanning for Unsubstantiated Marketing / Audit Claims ==="
 
 # Check for banned marketing hype
-HYPE_REGEX='(institutional[ -]grade|military[ -]grade|bulletproof|unhackable|zero[ -]risk|hft cockpit)'
+HYPE_REGEX='(\binstitutional\b|military[ -]grade|bulletproof|unhackable|zero[ -]risk|hft cockpit|decentralized oracle)'
 HYPE_MATCHES=$(grep -rniE "${HYPE_REGEX}" "${ROOT_DIR}/docs" "${README_FILE}" 2>/dev/null || true)
 if [ -n "${HYPE_MATCHES}" ]; then
   echo "Error: Unsubstantiated marketing buzzword(s) detected:" >&2

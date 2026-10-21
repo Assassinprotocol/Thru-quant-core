@@ -51,12 +51,6 @@ gcov_contracts_output=$(gcov -o tests/cov_contracts-test_contracts tests/test_co
 oracle_pct=$(echo "${gcov_contracts_output}" | grep -A 1 "File 'src/market_oracle.c'" | grep -E "(Lines executed|Baris dijalankan):" | grep -oE "[0-9]+\.[0-9]+" | head -n 1 || echo "0.0")
 check_file_coverage "src/market_oracle.c" "${oracle_pct}" 85 || FAILURES=$((FAILURES + 1))
 
-# 3. clob_engine.c coverage
-clob_pct=$(echo "${gcov_contracts_output}" | grep -A 1 "File 'src/clob_engine.c'" | grep -E "(Lines executed|Baris dijalankan):" | grep -oE "[0-9]+\.[0-9]+" | head -n 1 || echo "0.0")
-check_file_coverage "src/clob_engine.c" "${clob_pct}" 85 || FAILURES=$((FAILURES + 1))
-
-echo "--------------------------------------------------------"
-
 # Clean up binaries and gcov files
 rm -f tests/cov_* tests/*.gcda tests/*.gcno src/*.gcda src/*.gcno *.gcov
 

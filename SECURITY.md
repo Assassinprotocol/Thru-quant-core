@@ -33,11 +33,13 @@ We treat all security vulnerabilities with utmost priority. If you discover a po
 ## Security Invariants & Scope
 
 ### In-Scope Components
-- **C Core Contracts (`src/market_oracle.c`, `src/clob_engine.c`):**
-  - Authority signer verification (`ORACLE_ERR_UNAUTHORIZED = 0x2003`, `CLOB_ERR_UNAUTHORIZED = 0x3003`).
+- **C Core Contracts (`src/market_oracle.c`):**
+  - Authority signer verification (`ORACLE_ERR_UNAUTHORIZED = 0x2003`).
   - Pre-validation and circuit breaker bounds ($\le 500$ bps).
   - Monotonic timestamp regression protection (`0x200E`).
-  - Memory ladder boundary checks and anti-DoS limits (`CLOB_ERR_TRADER_LIMIT = 0x300C`).
+- **Research Prototypes (`research/clob/`):**
+  - Evaluated under research scope: order placement, cancellation authority, and FIFO priority.
+  - Note: Non-custodial research prototype without escrow.
 - **Fixed-Point Math Library (`src/thru_math.c`, `include/thru_math.h`):**
   - Q64.64 checked arithmetic (`q64_status_t`).
   - Range reduction and polynomial bounds for $\exp$ and $\ln$.

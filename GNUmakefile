@@ -38,7 +38,20 @@ fuzz-contracts:
 	rm -f tests/fuzz_contracts
 
 lint-c:
-	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc src/market_oracle.c src/clob_engine.c src/thru_math.c
+	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc src/market_oracle.c src/thru_math.c
+
+lint-clob:
+	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Iresearch/clob research/clob/clob_engine.c src/thru_math.c
+
+test-clob:
+	gcc -O2 -fsanitize=address,undefined -Iinclude -Iresearch/clob research/clob/test_clob.c src/thru_math.c -o research/clob/test_clob
+	./research/clob/test_clob
+	rm -f research/clob/test_clob
+
+fuzz-clob:
+	gcc -O3 -fsanitize=address,undefined -Iinclude -Iresearch/clob research/clob/fuzz_clob.c src/thru_math.c -lm -o research/clob/fuzz_clob
+	./research/clob/fuzz_clob 100000
+	rm -f research/clob/fuzz_clob
 
 lint-claims:
 	bash scripts/claims_lint.sh
@@ -59,10 +72,8 @@ build-rv64:
 	$(MAKE) bin
 	@echo "=== Verifying RISC-V Binary Bounds (< 32 KB) ==="
 	@test $$(wc -c < build/thruvm/bin/market_oracle_c.bin) -le 32768 || { echo "market_oracle_c.bin exceeds 32KB"; exit 1; }
-	@test $$(wc -c < build/thruvm/bin/clob_engine_c.bin) -le 32768 || { echo "clob_engine_c.bin exceeds 32KB"; exit 1; }
 	@echo "  [OK] market_oracle_c.bin: $$(wc -c < build/thruvm/bin/market_oracle_c.bin) B"
-	@echo "  [OK] clob_engine_c.bin:   $$(wc -c < build/thruvm/bin/clob_engine_c.bin) B"
-	@sha256sum build/thruvm/bin/*.bin
+	@sha256sum build/thruvm/bin/market_oracle_c.bin
 
 run-api: build-api
 	./build/thru_oracle_api --port 8080 --static-dir ./visualizer

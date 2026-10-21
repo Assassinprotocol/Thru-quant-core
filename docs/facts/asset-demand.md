@@ -25,7 +25,7 @@ To maximize capital efficiency and security, the oracle universe is focused on *
 | **ETH / USD** | Primary smart contract benchmark asset | Binance, Coinbase, OKX, Kraken | 100 bps |
 | **SOL / USD** | High-beta high-throughput collateral pair | Binance, Coinbase, OKX, Kraken | 150 bps |
 | **USDT / USD** | Primary liquidity quote currency; depeg alarm | Binance, Kraken, Curve pools | 30 bps |
-| **USDC / USD** | Secondary institutional stablecoin; depeg alarm | Coinbase, Kraken, Curve pools | 30 bps |
+| **USDC / USD** | Secondary major stablecoin; depeg alarm | Coinbase, Kraken, Curve pools | 30 bps |
 | **WTHRU / USD** | **Thru Native Asset**; pricing foundation for ecosystem DeFi | On-chain AMM pools (ThruSwap) / CEX | 300 bps |
 
 *Note on WTHRU:* Until on-chain AMM liquidity reaches statistical significance on Betanet, Core-5 will run actively, with WTHRU joining as soon as the ThruSwap pair pool is funded.
