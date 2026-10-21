@@ -13,8 +13,10 @@
 | **Q64.64 Math Core** | `src/thru_math.c` | C17 | ASan/UBSan Verified, 92 Golden Vectors | `Target-built` | `make test-math-golden` |
 | **Market Oracle (v1)** | `src/market_oracle.c` | C17 (RV64IMC) | Unit Tested, Parser Fuzzed, Coverage 86.6% | `Tier T0` | `make test` |
 | **Quorum Ingestion Feeder** | `feeder/quorum/` | Go 1.22 | 4-Venue Quorum Tested (Binance/CB/OKX/KR) | `Tier T0` | `go test ./feeder/...` |
-| **Oracle API & Metrics Daemon** | `api/` | Go 1.22 | Race Tested, SSE Stream Tested, Cov 92.1% | `Tier T0` | `make test-api` |
+| **Oracle API & Metrics Daemon** | `api/` | Go 1.22 | Hardened (XFF, Auth, SSE caps, R5 tested) | `Tier T0` | `make test-api` |
 | **TypeScript SDK** | `sdk/` | TypeScript | Unit Tested, Node.js v22 compatible | `Runtime-verified` | `make test-sdk` |
+| **Runtime Semantics (A1–A5)** | `docs/thru-runtime-assumptions.md` | Python / Docs | Invariants & Clock Skew Verified | `Target-built` | `make test-runtime-assumptions` |
+| **Observability & Status v0** | `prometheus/` | YAML / Python | Slot SLIs, Prometheus, Alerts, Grafana 7d | `Tier T0` | `make test-observability` |
 | **CLOB Matching Engine** | `research/clob/` | C17 | Price-Time Invariants Tested | `Research Prototype` | `make test-clob` |
 
 ---

@@ -62,6 +62,12 @@ verify-claims:
 test-deploy:
 	python3 tests/test_deploy_and_reset.py
 
+test-runtime-assumptions:
+	python3 tests/test_runtime_assumptions.py
+
+test-observability:
+	python3 tests/test_observability.py
+
 test-api:
 	go test -v ./...
 
@@ -101,7 +107,7 @@ test-sdk:
 run-example:
 	cd examples/quant-agent-consumer && ([ -d node_modules ] || npm install --silent) && node agent.ts --dry-run
 
-all-tests: test test-simulation test-hardening test-math-golden test-math-checked fuzz-math fuzz-contracts lint-c lint-claims verify-claims coverage test-api test-sdk run-example
+all-tests: test test-simulation test-hardening test-math-golden test-math-checked fuzz-math fuzz-contracts lint-c lint-claims verify-claims test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk run-example
 
 coverage:
 	bash scripts/coverage_gate.sh

@@ -1,0 +1,16 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'severity', 'tier']
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 4h
+  receiver: local_webhook
+
+receivers:
+  - name: local_webhook
+    webhook_configs:
+      - url: 'http://host.docker.internal:8088/alerts'
+        send_resolved: true
+        max_alerts: 10

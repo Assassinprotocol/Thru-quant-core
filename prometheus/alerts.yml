@@ -9,7 +9,17 @@ groups:
           tier: p0
         annotations:
           summary: "Market Oracle Circuit Breaker Tripped On-Chain"
-          description: "Circuit breaker flag active on Thru Alphanet (account state halted). Pricing updates are paused on-chain until operator rebase or resume."
+          description: "Circuit breaker flag active on Thru Betanet (account state halted). Pricing updates are paused on-chain until operator rebase or resume."
+
+      - alert: OracleFeedSlotLagElevated
+        expr: api_feed_age_slots > 10
+        for: 1m
+        labels:
+          severity: warning
+          tier: p2
+        annotations:
+          summary: "Oracle Slot Lag Elevated (> 10 Slots)"
+          description: "Oracle feed age has exceeded 10 slot units on Betanet. Publisher heartbeat or crankshaft may be delayed."
 
       - alert: OracleFeedStale
         expr: api_feed_age_seconds > 30
@@ -30,6 +40,16 @@ groups:
         annotations:
           summary: "Oracle Feed Critically Stale (> 120s Fail-Closed Boundary)"
           description: "Feed age is {{ $value }}s (> 120s). Consumers and smart contracts must enforce fail-closed zero-pricing."
+
+      - alert: OracleTrackedAssetsLow
+        expr: api_tracked_assets < 3
+        for: 2m
+        labels:
+          severity: critical
+          tier: p1
+        annotations:
+          summary: "Oracle Tracked Assets Degraded (< 3 Active Feeds)"
+          description: "Oracle state contains fewer than 3 actively quoted assets. Core asset feeds may be missing."
 
       - alert: FeederRPCFailuresElevated
         expr: rate(api_rpc_failures_total[5m]) / (rate(api_requests_total[5m]) + 0.0001) > 0.05
