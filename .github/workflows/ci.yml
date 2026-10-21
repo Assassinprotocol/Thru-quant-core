@@ -116,3 +116,30 @@ jobs:
           make lint-c
           make lint-claims
           make verify-claims
+
+  rv64imc-build:
+    name: RISC-V RV64IMC Contract Build & ABI Codegen Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Thru CLI and Toolchain
+        run: |
+          npm install -g thru@0.4.2
+          thru dev toolchain install
+          thru dev sdk install
+
+      - name: Verify ABI Codegen Parity
+        run: |
+          make codegen-abi
+          git diff --exit-code sdk/src/generated
+
+      - name: Build RV64IMC Binary and Verify Size & SHA-256
+        run: |
+          make build-rv64

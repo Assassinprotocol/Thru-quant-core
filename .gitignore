@@ -26,6 +26,7 @@ feeder/feeder
 # Node & SDK dependencies
 node_modules/
 package-lock.json
+sdk/dist/
 *.map
 
 # Runtime data & logs

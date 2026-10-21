@@ -86,6 +86,9 @@ bench-math:
 bench-api:
 	go test -bench=. -benchmem ./api
 
+codegen-abi:
+	thru abi codegen --files src/market_oracle.abi.yaml --language typescript --output sdk/src/generated
+
 build-sdk:
 	cd sdk && ([ -d node_modules ] || npm install --silent) && npm run build
 

@@ -28,5 +28,14 @@ make test-sdk
 make run-example
 make bench-math
 make bench-api
+
+if command -v thru >/dev/null 2>&1; then
+    make codegen-abi
+fi
+
+if [ -d "${HOME}/.thru/sdk/toolchain" ]; then
+    make build-rv64
+fi
+
 make clean-tests
 

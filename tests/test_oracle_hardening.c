@@ -12,7 +12,7 @@
 
 #include "thru_math.h"
 #include "../src/market_oracle.h"
-#include "../src/clob_engine.h"
+
 
 /* =========================================================================
  * MOCK THRU SDK & SYSCALL ENGINE
@@ -145,10 +145,6 @@ static void reset_mock_env(void) {
 #include "../src/market_oracle.c"
 #undef start
 
-#define start clob_contract_start
-#include "../src/clob_engine.c"
-#undef start
-#undef start
 
 static int g_pass = 0, g_fail = 0;
 #define CHECK(cond, msg) do { if (cond) { g_pass++; } else { g_fail++; printf("  [FAIL] %s (line %d)\n", msg, __LINE__); } } while (0)
