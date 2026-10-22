@@ -9,3 +9,4 @@ export * from "./decoder.ts";
 export * from "./encoder.ts";
 export * from "./guards.ts";
 export * from "./client.ts";
+export * from "./v2_decoder.ts";

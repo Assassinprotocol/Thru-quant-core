@@ -122,6 +122,8 @@ func main() {
 	venues := flag.String("venues", "binance,coinbase,okx", "Comma-separated list of venue sources for quorum mode")
 	quorumCollarBps := flag.Int("quorum-collar-bps", 150, "Maximum basis point deviation allowable between venues for consensus")
 	quorumTimeout := flag.Duration("quorum-timeout", 2*time.Second, "Timeout per venue HTTP request")
+	v2Program := flag.String("v2-program", "", "Target Oracle v2 program public key for dual-stack streaming")
+	v2SubAccount := flag.String("v2-submission-account", "", "Target Oracle v2 publisher submission account")
 	flag.Parse()
 
 	if *programPubkey == "" || *oracleAccount == "" {
@@ -394,6 +396,30 @@ func main() {
 					}
 				} else {
 					log.Printf("feeder: verified payload (%d bytes), no on-chain target set", len(payload))
+				}
+
+				if *v2Program != "" || *v2SubAccount != "" || *dryRun {
+					v2Payload := BuildV2SubmitPayload(0, 1, sequenceNum, prices)
+					if len(v2Payload) > 0 {
+						log.Printf("feeder: v2 payload_bytes=%d", len(v2Payload))
+						if !*dryRun && *v2Program != "" && *v2SubAccount != "" {
+							v2Ctx, v2Cancel := context.WithTimeout(context.Background(), 15*time.Second)
+							v2Cmd := exec.CommandContext(v2Ctx, "thru", "--network", *network, "txn", "execute", *v2Program, hex.EncodeToString(v2Payload),
+								"--readwrite-accounts", *v2SubAccount,
+								"--fee-payer", *feePayer,
+								"--state-units", "10",
+								"--memory-units", "5000",
+								"--compute-units", "100000",
+								"--fee", "0")
+							v2Out, v2Err := v2Cmd.CombinedOutput()
+							v2Cancel()
+							if v2Err == nil {
+								log.Printf("feeder: v2 tx confirmed:\n%s", strings.TrimSpace(string(v2Out)))
+							} else {
+								log.Printf("feeder: v2 tx failed: %v: %s", v2Err, string(v2Out))
+							}
+						}
+					}
 				}
 			}
 		}
