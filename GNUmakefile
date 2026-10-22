@@ -107,7 +107,17 @@ test-sdk:
 run-example:
 	cd examples/quant-agent-consumer && ([ -d node_modules ] || npm install --silent) && node agent.ts --dry-run
 
-all-tests: test test-simulation test-hardening test-math-golden test-math-checked fuzz-math fuzz-contracts lint-c lint-claims verify-claims test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk run-example
+test-v2-math:
+	gcc -O2 -fsanitize=address,undefined -Isrc/v2 tests/test_aggregation_v2.c src/v2/aggregation_math.c -o tests/test_aggregation_v2
+	./tests/test_aggregation_v2
+	rm -f tests/test_aggregation_v2
+
+bench-v2-math:
+	gcc -O3 -fsanitize=address,undefined -Isrc/v2 tests/bench_aggregation.c src/v2/aggregation_math.c -o tests/bench_agg
+	./tests/bench_agg
+	rm -f tests/bench_agg
+
+all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math fuzz-math fuzz-contracts lint-c lint-claims verify-claims test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk run-example
 
 coverage:
 	bash scripts/coverage_gate.sh
