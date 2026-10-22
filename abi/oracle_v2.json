@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "thru_price_hub_oracle",
+  "version": "2.0.0",
+  "architecture": "rv64imc",
+  "accounts": [
+    {
+      "name": "RegistryAccount",
+      "discriminator": "0x54524547",
+      "pda": ["registry", "admin_multisig_pubkey"],
+      "fields": [
+        {"name": "magic", "type": "u32"},
+        {"name": "version", "type": "u32"},
+        {"name": "admin_m", "type": "u32"},
+        {"name": "admin_n", "type": "u32"},
+        {"name": "admin_keys", "type": "[[u8; 32]; 5]"},
+        {"name": "pending_admin_keys", "type": "[[u8; 32]; 5]"},
+        {"name": "pending_admin_m", "type": "u32"},
+        {"name": "pending_admin_n", "type": "u32"},
+        {"name": "admin_transfer_expiry", "type": "u64"},
+        {"name": "min_publishers", "type": "u32"},
+        {"name": "publisher_count", "type": "u32"},
+        {"name": "publishers", "type": "[PublisherDesc; 7]"},
+        {"name": "feed_count", "type": "u32"},
+        {"name": "feeds", "type": "[FeedConfig; 32]"},
+        {"name": "timelock_count", "type": "u32"},
+        {"name": "timelock_queue", "type": "[TimelockEntry; 8]"}
+      ]
+    },
+    {
+      "name": "SubmissionAccount",
+      "discriminator": "0x54535542",
+      "pda": ["submission", "publisher_pubkey"],
+      "fields": [
+        {"name": "magic", "type": "u32"},
+        {"name": "version", "type": "u32"},
+        {"name": "publisher_pubkey", "type": "[u8; 32]"},
+        {"name": "sequence_number", "type": "u64"},
+        {"name": "publish_slot", "type": "u64"},
+        {"name": "quote_count", "type": "u32"},
+        {"name": "flags", "type": "u32"},
+        {"name": "quotes", "type": "[RawQuote; 32]"}
+      ]
+    },
+    {
+      "name": "FeedAccount",
+      "discriminator": "0x54464545",
+      "pda": ["feed", "symbol_id"],
+      "fields": [
+        {"name": "magic", "type": "u32"},
+        {"name": "version", "type": "u32"},
+        {"name": "symbol_id", "type": "u32"},
+        {"name": "status", "type": "u32"},
+        {"name": "price", "type": "u64"},
+        {"name": "prev_price", "type": "u64"},
+        {"name": "confidence_bps", "type": "u64"},
+        {"name": "publish_slot", "type": "u64"},
+        {"name": "prev_publish_slot", "type": "u64"},
+        {"name": "median_source_ts", "type": "u64"},
+        {"name": "contributor_count", "type": "u32"},
+        {"name": "flags", "type": "u32"},
+        {"name": "contributor_mask", "type": "u8"},
+        {"name": "reserved", "type": "[u8; 7]"}
+      ]
+    }
+  ],
+  "instructions": [
+    {
+      "name": "InitializeRegistry",
+      "opcode": 1,
+      "accounts": [
+        {"name": "registry", "is_mut": true, "is_signer": false},
+        {"name": "deployer", "is_mut": true, "is_signer": true}
+      ],
+      "args": [
+        {"name": "admin_m", "type": "u32"},
+        {"name": "admin_n", "type": "u32"},
+        {"name": "admin_keys", "type": "[[u8; 32]; 5]"},
+        {"name": "min_publishers", "type": "u32"}
+      ]
+    },
+    {
+      "name": "SubmitPrices",
+      "opcode": 2,
+      "accounts": [
+        {"name": "registry", "is_mut": false, "is_signer": false},
+        {"name": "submission", "is_mut": true, "is_signer": false},
+        {"name": "publisher", "is_mut": false, "is_signer": true}
+      ],
+      "args": [
+        {"name": "quote_count", "type": "u32"},
+        {"name": "quotes", "type": "[RawQuote]"}
+      ]
+    },
+    {
+      "name": "Aggregate",
+      "opcode": 3,
+      "accounts": [
+        {"name": "registry", "is_mut": false, "is_signer": false},
+        {"name": "feed", "is_mut": true, "is_signer": false},
+        {"name": "crank", "is_mut": true, "is_signer": true}
+      ],
+      "args": [
+        {"name": "symbol_id", "type": "u32"}
+      ]
+    },
+    {
+      "name": "QueueConfig",
+      "opcode": 4,
+      "accounts": [
+        {"name": "registry", "is_mut": true, "is_signer": false}
+      ],
+      "args": [
+        {"name": "action_id", "type": "u32"},
+        {"name": "target_id", "type": "u32"},
+        {"name": "param_val", "type": "u64"}
+      ]
+    },
+    {
+      "name": "ApplyConfig",
+      "opcode": 5,
+      "accounts": [
+        {"name": "registry", "is_mut": true, "is_signer": false}
+      ],
+      "args": [
+        {"name": "queue_index", "type": "u32"}
+      ]
+    },
+    {
+      "name": "EmergencyPauseSymbol",
+      "opcode": 6,
+      "accounts": [
+        {"name": "registry", "is_mut": false, "is_signer": false},
+        {"name": "feed", "is_mut": true, "is_signer": false}
+      ],
+      "args": [
+        {"name": "symbol_id", "type": "u32"}
+      ]
+    },
+    {
+      "name": "EmergencyResumeSymbol",
+      "opcode": 7,
+      "accounts": [
+        {"name": "registry", "is_mut": false, "is_signer": false},
+        {"name": "feed", "is_mut": true, "is_signer": false}
+      ],
+      "args": [
+        {"name": "symbol_id", "type": "u32"}
+      ]
+    },
+    {
+      "name": "SetPublisher",
+      "opcode": 8,
+      "accounts": [
+        {"name": "registry", "is_mut": true, "is_signer": false}
+      ],
+      "args": [
+        {"name": "publisher_pubkey", "type": "[u8; 32]"},
+        {"name": "status", "type": "u32"}
+      ]
+    },
+    {
+      "name": "ProposeAdmin",
+      "opcode": 9,
+      "accounts": [
+        {"name": "registry", "is_mut": true, "is_signer": false}
+      ],
+      "args": [
+        {"name": "new_admin_m", "type": "u32"},
+        {"name": "new_admin_n", "type": "u32"},
+        {"name": "new_admin_keys", "type": "[[u8; 32]; 5]"}
+      ]
+    },
+    {
+      "name": "AcceptAdmin",
+      "opcode": 10,
+      "accounts": [
+        {"name": "registry", "is_mut": true, "is_signer": false}
+      ],
+      "args": []
+    }
+  ],
+  "events": [
+    {
+      "name": "AggregateUpdated",
+      "type_id": 1,
+      "fields": [
+        {"name": "event_type", "type": "u8"},
+        {"name": "symbol_id", "type": "u8"},
+        {"name": "flags", "type": "u16"},
+        {"name": "contributor_mask", "type": "u32"},
+        {"name": "price", "type": "u64"},
+        {"name": "confidence_bps", "type": "u64"},
+        {"name": "publish_slot", "type": "u64"},
+        {"name": "median_source_ts", "type": "u64"}
+      ]
+    },
+    {
+      "name": "SubmissionCommitted",
+      "type_id": 2,
+      "fields": [
+        {"name": "publisher_pubkey", "type": "[u8; 32]"},
+        {"name": "sequence_number", "type": "u64"},
+        {"name": "publish_slot", "type": "u64"},
+        {"name": "quote_count", "type": "u32"}
+      ]
+    },
+    {
+      "name": "StatusChanged",
+      "type_id": 3,
+      "fields": [
+        {"name": "symbol_id", "type": "u32"},
+        {"name": "old_status", "type": "u32"},
+        {"name": "new_status", "type": "u32"}
+      ]
+    }
+  ],
+  "errors": [
+    {"code": 6001, "name": "UnauthorizedPublisher", "msg": "Caller signature not present in active registry publisher list"},
+    {"code": 6002, "name": "InsufficientMultisigSigners", "msg": "Instruction does not meet required M-of-N admin threshold"},
+    {"code": 6003, "name": "TimestampRegression", "msg": "Submitted timestamp must be strictly non-decreasing"},
+    {"code": 6004, "name": "TimestampOutOfBounds", "msg": "Submitted timestamp outside allowable drift window [block-30s, block+5s]"},
+    {"code": 6005, "name": "InsufficientQuorum", "msg": "Number of valid active publishers below minimum consensus threshold"},
+    {"code": 6006, "name": "NoConsensusOutliersPruned", "msg": "Remaining valid cohort after outlier rejection below minimum threshold"},
+    {"code": 6007, "name": "TimelockNotMatured", "msg": "Configuration entry has not reached maturity delay (24 hours)"},
+    {"code": 6008, "name": "FeedEmergencyPaused", "msg": "Aggregation rejected because symbol is currently in paused status"},
+    {"code": 6009, "name": "MaxPublishersExceeded", "msg": "Cannot register more than 7 publishers"},
+    {"code": 6010, "name": "ZeroPriceNotAllowed", "msg": "Submitted asset quote price must be strictly greater than zero"},
+    {"code": 6011, "name": "InvalidAccountOwner", "msg": "Account owner does not match canonical ProgramID"}
+  ]
+}

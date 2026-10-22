@@ -1,6 +1,6 @@
 # ADR 0001: Oracle V2 Account Layout & Role Separation
 
-- **Status:** Proposed
+- **Status:** Superseded by ADR 0003
 - **Date:** 2026-10-19
 - **Deciders:** Hansen Core Engineering
 - **Technical Domains:** On-Chain Program, Access Control, Key Governance

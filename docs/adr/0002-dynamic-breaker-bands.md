@@ -1,6 +1,6 @@
 # ADR 0002: Dynamic Volatility Bands & Per-Symbol Quarantine
 
-- **Status:** Proposed
+- **Status:** Superseded by ADR 0003
 - **Date:** 2026-10-19
 - **Deciders:** Hansen Core Engineering
 - **Technical Domains:** Risk Management, Pricing Invariants, Circuit Breakers
