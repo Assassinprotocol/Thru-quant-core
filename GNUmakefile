@@ -39,6 +39,7 @@ fuzz-contracts:
 
 lint-c:
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc src/market_oracle.c src/thru_math.c
+	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc -Isrc/v2 src/v2/aggregation_math.c src/v2/oracle_v2.c
 
 lint-clob:
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Iresearch/clob research/clob/clob_engine.c src/thru_math.c
@@ -83,6 +84,9 @@ build-rv64:
 	@test $$(wc -c < build/thruvm/bin/market_oracle_c.bin) -le 32768 || { echo "market_oracle_c.bin exceeds 32KB"; exit 1; }
 	@echo "  [OK] market_oracle_c.bin: $$(wc -c < build/thruvm/bin/market_oracle_c.bin) B"
 	@sha256sum build/thruvm/bin/market_oracle_c.bin
+	@test $$(wc -c < build/thruvm/bin/oracle_v2_c.bin) -le 32768 || { echo "oracle_v2_c.bin exceeds 32KB"; exit 1; }
+	@echo "  [OK] oracle_v2_c.bin: $$(wc -c < build/thruvm/bin/oracle_v2_c.bin) B"
+	@sha256sum build/thruvm/bin/oracle_v2_c.bin
 
 run-api: build-api
 	./build/thru_oracle_api --port 8080 --static-dir ./visualizer
@@ -112,12 +116,33 @@ test-v2-math:
 	./tests/test_aggregation_v2
 	rm -f tests/test_aggregation_v2
 
+test-v2-golden:
+	gcc -O2 -fsanitize=address,undefined -Isrc/v2 -Itests tests/test_v2_golden.c src/v2/aggregation_math.c -o tests/test_v2_golden
+	./tests/test_v2_golden
+	rm -f tests/test_v2_golden
+
 bench-v2-math:
 	gcc -O3 -fsanitize=address,undefined -Isrc/v2 tests/bench_aggregation.c src/v2/aggregation_math.c -o tests/bench_agg
 	./tests/bench_agg
 	rm -f tests/bench_agg
 
-all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math fuzz-math fuzz-contracts lint-c lint-claims verify-claims test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk run-example
+test-v2-contracts:
+	gcc -O2 -fsanitize=address,undefined -Iinclude -Isrc -Isrc/v2 tests/test_oracle_v2_contracts.c src/v2/aggregation_math.c -o tests/test_oracle_v2_contracts
+	./tests/test_oracle_v2_contracts
+	rm -f tests/test_oracle_v2_contracts
+
+fuzz-v2-contracts:
+	gcc -O3 -fsanitize=address,undefined -Iinclude -Isrc -Isrc/v2 tests/fuzz_oracle_v2.c src/v2/aggregation_math.c -o tests/fuzz_oracle_v2
+	./tests/fuzz_oracle_v2 50000
+	rm -f tests/fuzz_oracle_v2
+
+generate-v2-fixtures:
+	python3 tests/generate_v2_fixtures.py
+
+test-v2-shadow-parity:
+	python3 tests/test_v1_v2_shadow_parity.py
+
+all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math test-v2-golden test-v2-contracts test-v2-shadow-parity fuzz-math fuzz-contracts fuzz-v2-contracts lint-c lint-claims verify-claims test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk run-example
 
 coverage:
 	bash scripts/coverage_gate.sh

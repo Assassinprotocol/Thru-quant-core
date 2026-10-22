@@ -1,0 +1,156 @@
+{
+  "version": 2,
+  "test_cases": [
+    {
+      "name": "btc_symmetric_5_pubs",
+      "prev_price": 8400000000000,
+      "outlier_bps": 100,
+      "big_move_bps": 300,
+      "quotes": [
+        {
+          "price": 8400000000000,
+          "source_ts": 1700000000
+        },
+        {
+          "price": 8400500000000,
+          "source_ts": 1700000000
+        },
+        {
+          "price": 8401000000000,
+          "source_ts": 1700000001
+        },
+        {
+          "price": 8401500000000,
+          "source_ts": 1700000001
+        },
+        {
+          "price": 8402000000000,
+          "source_ts": 1700000002
+        }
+      ],
+      "expected": {
+        "success": true,
+        "price": 8401000000000,
+        "confidence_bps": 0,
+        "contributor_count": 5,
+        "flags": 0
+      }
+    },
+    {
+      "name": "btc_outlier_spike_5_pubs",
+      "prev_price": 8400000000000,
+      "outlier_bps": 100,
+      "big_move_bps": 300,
+      "quotes": [
+        {
+          "price": 8400000000000,
+          "source_ts": 1700000000
+        },
+        {
+          "price": 8400500000000,
+          "source_ts": 1700000000
+        },
+        {
+          "price": 8401000000000,
+          "source_ts": 1700000001
+        },
+        {
+          "price": 8401500000000,
+          "source_ts": 1700000001
+        },
+        {
+          "price": 8600000000000,
+          "source_ts": 1700000002
+        }
+      ],
+      "expected": {
+        "success": true,
+        "price": 8400750000000,
+        "confidence_bps": 0,
+        "contributor_count": 4,
+        "flags": 8
+      }
+    },
+    {
+      "name": "eth_big_move_3_pubs",
+      "prev_price": 250000000000,
+      "outlier_bps": 100,
+      "big_move_bps": 300,
+      "quotes": [
+        {
+          "price": 260000000000,
+          "source_ts": 1700000000
+        },
+        {
+          "price": 260200000000,
+          "source_ts": 1700000001
+        },
+        {
+          "price": 260100000000,
+          "source_ts": 1700000002
+        }
+      ],
+      "expected": {
+        "success": true,
+        "price": 260100000000,
+        "confidence_bps": 3,
+        "contributor_count": 3,
+        "flags": 2
+      }
+    },
+    {
+      "name": "sol_tight_quorum_3_pubs",
+      "prev_price": 10500000000,
+      "outlier_bps": 100,
+      "big_move_bps": 300,
+      "quotes": [
+        {
+          "price": 10500000000,
+          "source_ts": 1700000000
+        },
+        {
+          "price": 10500000000,
+          "source_ts": 1700000001
+        },
+        {
+          "price": 10500000000,
+          "source_ts": 1700000002
+        }
+      ],
+      "expected": {
+        "success": true,
+        "price": 10500000000,
+        "confidence_bps": 0,
+        "contributor_count": 3,
+        "flags": 0
+      }
+    },
+    {
+      "name": "outlier_exhaustion_quorum_fail",
+      "prev_price": 100000000,
+      "outlier_bps": 30,
+      "big_move_bps": 100,
+      "quotes": [
+        {
+          "price": 100000000,
+          "source_ts": 1700000000
+        },
+        {
+          "price": 100001000,
+          "source_ts": 1700000001
+        },
+        {
+          "price": 105000000,
+          "source_ts": 1700000002
+        }
+      ],
+      "expected": {
+        "success": false,
+        "price": 0,
+        "confidence_bps": 0,
+        "contributor_count": 0,
+        "flags": 4
+      }
+    }
+  ]
+}

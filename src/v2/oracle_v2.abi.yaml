@@ -1,0 +1,412 @@
+abi:
+  package: oracle_v2
+  abi-version: 1
+  package-version: 2
+  description: "Thru Price Hub Oracle v2 Specification"
+
+types:
+  - name: pubkey_bytes
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: data
+            field-type:
+              array:
+                element-type:
+                  primitive: u8
+                size:
+                  literal:
+                    u64: 32
+
+  - name: publisher_desc
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: pubkey
+            field-type:
+              type-ref:
+                name: pubkey_bytes
+          - name: status
+            field-type:
+              primitive: u32
+          - name: weight
+            field-type:
+              primitive: u32
+          - name: last_submission_slot
+            field-type:
+              primitive: u64
+
+  - name: feed_config
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: symbol_id
+            field-type:
+              primitive: u32
+          - name: status
+            field-type:
+              primitive: u32
+          - name: outlier_bps
+            field-type:
+              primitive: u32
+          - name: max_staleness_slots
+            field-type:
+              primitive: u32
+          - name: big_move_bps
+            field-type:
+              primitive: u32
+          - name: reserved
+            field-type:
+              primitive: u32
+
+  - name: timelock_entry
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: action_id
+            field-type:
+              primitive: u32
+          - name: target_id
+            field-type:
+              primitive: u32
+          - name: param_val
+            field-type:
+              primitive: u64
+          - name: unlock_timestamp
+            field-type:
+              primitive: u64
+
+  - name: registry_account_data
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: magic
+            field-type:
+              primitive: u32
+          - name: version
+            field-type:
+              primitive: u32
+          - name: admin_m
+            field-type:
+              primitive: u32
+          - name: admin_n
+            field-type:
+              primitive: u32
+          - name: admin_keys
+            field-type:
+              array:
+                element-type:
+                  type-ref:
+                    name: pubkey_bytes
+                size:
+                  literal:
+                    u64: 5
+          - name: pending_admin_keys
+            field-type:
+              array:
+                element-type:
+                  type-ref:
+                    name: pubkey_bytes
+                size:
+                  literal:
+                    u64: 5
+          - name: pending_admin_m
+            field-type:
+              primitive: u32
+          - name: pending_admin_n
+            field-type:
+              primitive: u32
+          - name: admin_transfer_expiry
+            field-type:
+              primitive: u64
+          - name: min_publishers
+            field-type:
+              primitive: u32
+          - name: publisher_count
+            field-type:
+              primitive: u32
+          - name: publishers
+            field-type:
+              array:
+                element-type:
+                  type-ref:
+                    name: publisher_desc
+                size:
+                  literal:
+                    u64: 7
+          - name: feed_count
+            field-type:
+              primitive: u32
+          - name: feeds
+            field-type:
+              array:
+                element-type:
+                  type-ref:
+                    name: feed_config
+                size:
+                  literal:
+                    u64: 32
+          - name: timelock_count
+            field-type:
+              primitive: u32
+          - name: timelock_queue
+            field-type:
+              array:
+                element-type:
+                  type-ref:
+                    name: timelock_entry
+                size:
+                  literal:
+                    u64: 8
+
+  - name: raw_quote
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: symbol_id
+            field-type:
+              primitive: u32
+          - name: reserved
+            field-type:
+              primitive: u32
+          - name: price
+            field-type:
+              primitive: u64
+          - name: source_ts
+            field-type:
+              primitive: u64
+
+  - name: submission_account_data
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: magic
+            field-type:
+              primitive: u32
+          - name: version
+            field-type:
+              primitive: u32
+          - name: publisher_pubkey
+            field-type:
+              type-ref:
+                name: pubkey_bytes
+          - name: sequence_number
+            field-type:
+              primitive: u64
+          - name: publish_slot
+            field-type:
+              primitive: u64
+          - name: quote_count
+            field-type:
+              primitive: u32
+          - name: flags
+            field-type:
+              primitive: u32
+          - name: quotes
+            field-type:
+              array:
+                element-type:
+                  type-ref:
+                    name: raw_quote
+                size:
+                  literal:
+                    u64: 32
+
+  - name: feed_account_data
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: magic
+            field-type:
+              primitive: u32
+          - name: version
+            field-type:
+              primitive: u32
+          - name: symbol_id
+            field-type:
+              primitive: u32
+          - name: status
+            field-type:
+              primitive: u32
+          - name: price
+            field-type:
+              primitive: u64
+          - name: prev_price
+            field-type:
+              primitive: u64
+          - name: confidence_bps
+            field-type:
+              primitive: u64
+          - name: publish_slot
+            field-type:
+              primitive: u64
+          - name: prev_publish_slot
+            field-type:
+              primitive: u64
+          - name: median_source_ts
+            field-type:
+              primitive: u64
+          - name: contributor_count
+            field-type:
+              primitive: u32
+          - name: flags
+            field-type:
+              primitive: u32
+          - name: contributor_mask
+            field-type:
+              primitive: u8
+          - name: reserved
+            field-type:
+              array:
+                element-type:
+                  primitive: u8
+                size:
+                  literal:
+                    u64: 7
+
+  - name: init_registry_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: admin_m
+            field-type:
+              primitive: u32
+          - name: admin_n
+            field-type:
+              primitive: u32
+          - name: min_publishers
+            field-type:
+              primitive: u32
+          - name: admin_keys
+            field-type:
+              array:
+                element-type:
+                  type-ref:
+                    name: pubkey_bytes
+                size:
+                  literal:
+                    u64: 5
+
+  - name: submit_prices_hdr
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: quote_count
+            field-type:
+              primitive: u32
+
+  - name: aggregate_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: symbol_id
+            field-type:
+              primitive: u32
+
+  - name: queue_config_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: action_id
+            field-type:
+              primitive: u32
+          - name: target_id
+            field-type:
+              primitive: u32
+          - name: param_val
+            field-type:
+              primitive: u64
+
+  - name: apply_config_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: queue_index
+            field-type:
+              primitive: u32
+
+  - name: emergency_pause_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: symbol_id
+            field-type:
+              primitive: u32
+
+  - name: set_publisher_args
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: instruction_type
+            field-type:
+              primitive: u32
+          - name: publisher_pubkey
+            field-type:
+              type-ref:
+                name: pubkey_bytes
+          - name: status
+            field-type:
+              primitive: u32
+
+  - name: event_aggregate_updated
+    kind:
+      struct:
+        packed: true
+        fields:
+          - name: event_type
+            field-type:
+              primitive: u8
+          - name: symbol_id
+            field-type:
+              primitive: u8
+          - name: flags
+            field-type:
+              primitive: u16
+          - name: contributor_mask
+            field-type:
+              primitive: u32
+          - name: price
+            field-type:
+              primitive: u64
+          - name: confidence_bps
+            field-type:
+              primitive: u64
+          - name: publish_slot
+            field-type:
+              primitive: u64
+          - name: median_source_ts
+            field-type:
+              primitive: u64

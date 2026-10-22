@@ -1,0 +1,188 @@
+import json
+from decimal import Decimal
+
+def compute_v2_aggregation(quotes, min_quorum=3, outlier_bps=100, big_move_bps=300, prev_price=0):
+    if len(quotes) < min_quorum or len(quotes) > 7:
+        return {"success": False, "price": 0, "confidence_bps": 0, "contributor_count": 0, "flags": 0x01}
+
+    p1 = sorted([Decimal(q["price"]) for q in quotes])
+    n1 = len(p1)
+    if n1 % 2 == 1:
+        m1 = p1[n1 // 2]
+    else:
+        m1 = (p1[(n1 // 2) - 1] + p1[n1 // 2]) // Decimal(2)
+
+    if m1 == 0:
+        return {"success": False, "price": 0, "confidence_bps": 0, "contributor_count": 0, "flags": 0x01}
+
+    filtered = []
+    outlier_dropped = 0
+    for q in quotes:
+        p = Decimal(q["price"])
+        diff = abs(p - m1)
+        dev_bps = (diff * Decimal(10000)) // m1
+        if dev_bps <= Decimal(outlier_bps):
+            filtered.append(p)
+        else:
+            outlier_dropped += 1
+
+    if len(filtered) < min_quorum:
+        return {"success": False, "price": 0, "confidence_bps": 0, "contributor_count": 0, "flags": 0x04}
+
+    filtered.sort()
+    n2 = len(filtered)
+    if n2 % 2 == 1:
+        m2 = filtered[n2 // 2]
+    else:
+        m2 = (filtered[(n2 // 2) - 1] + filtered[n2 // 2]) // Decimal(2)
+
+    residuals = sorted([abs(p - m2) for p in filtered])
+    nr = len(residuals)
+    if nr % 2 == 1:
+        mad = residuals[nr // 2]
+    else:
+        mad = (residuals[(nr // 2) - 1] + residuals[nr // 2]) // Decimal(2)
+
+    conf_bps = (mad * Decimal(10000)) // m2 if m2 > 0 else Decimal(0)
+
+    flags = 0
+    if prev_price > 0:
+        prev = Decimal(prev_price)
+        shift = abs(m2 - prev)
+        shift_bps = (shift * Decimal(10000)) // prev
+        if shift_bps >= Decimal(big_move_bps):
+            flags |= 0x02
+    if conf_bps >= Decimal(50):
+        flags |= 0x04
+    if outlier_dropped > 0:
+        flags |= 0x08
+
+    return {
+        "success": True,
+        "price": int(m2),
+        "confidence_bps": int(conf_bps),
+        "contributor_count": len(filtered),
+        "flags": flags
+    }
+
+def main():
+    cases = [
+        {
+            "name": "btc_symmetric_5_pubs",
+            "prev_price": 8400000000000,
+            "outlier_bps": 100,
+            "big_move_bps": 300,
+            "quotes": [
+                {"price": 8400000000000, "source_ts": 1700000000},
+                {"price": 8400500000000, "source_ts": 1700000000},
+                {"price": 8401000000000, "source_ts": 1700000001},
+                {"price": 8401500000000, "source_ts": 1700000001},
+                {"price": 8402000000000, "source_ts": 1700000002}
+            ]
+        },
+        {
+            "name": "btc_outlier_spike_5_pubs",
+            "prev_price": 8400000000000,
+            "outlier_bps": 100,
+            "big_move_bps": 300,
+            "quotes": [
+                {"price": 8400000000000, "source_ts": 1700000000},
+                {"price": 8400500000000, "source_ts": 1700000000},
+                {"price": 8401000000000, "source_ts": 1700000001},
+                {"price": 8401500000000, "source_ts": 1700000001},
+                {"price": 8600000000000, "source_ts": 1700000002}
+            ]
+        },
+        {
+            "name": "eth_big_move_3_pubs",
+            "prev_price": 250000000000,
+            "outlier_bps": 100,
+            "big_move_bps": 300,
+            "quotes": [
+                {"price": 260000000000, "source_ts": 1700000000},
+                {"price": 260200000000, "source_ts": 1700000001},
+                {"price": 260100000000, "source_ts": 1700000002}
+            ]
+        },
+        {
+            "name": "sol_tight_quorum_3_pubs",
+            "prev_price": 10500000000,
+            "outlier_bps": 100,
+            "big_move_bps": 300,
+            "quotes": [
+                {"price": 10500000000, "source_ts": 1700000000},
+                {"price": 10500000000, "source_ts": 1700000001},
+                {"price": 10500000000, "source_ts": 1700000002}
+            ]
+        },
+        {
+            "name": "outlier_exhaustion_quorum_fail",
+            "prev_price": 100000000,
+            "outlier_bps": 30,
+            "big_move_bps": 100,
+            "quotes": [
+                {"price": 100000000, "source_ts": 1700000000},
+                {"price": 100001000, "source_ts": 1700000001},
+                {"price": 105000000, "source_ts": 1700000002}
+            ]
+        }
+    ]
+
+    for c in cases:
+        c["expected"] = compute_v2_aggregation(
+            c["quotes"],
+            outlier_bps=c["outlier_bps"],
+            big_move_bps=c["big_move_bps"],
+            prev_price=c["prev_price"]
+        )
+
+    # 1. Output JSON
+    json_path = "testdata/fixtures/oracle_v2_golden_vectors.json"
+    with open(json_path, "w") as f:
+        json.dump({"version": 2, "test_cases": cases}, f, indent=2)
+
+    # 2. Output C Header
+    h_path = "tests/golden_v2_vectors.h"
+    with open(h_path, "w") as f:
+        f.write("/* Auto-generated by tests/generate_v2_fixtures.py - DO NOT EDIT MANUALLY */\n")
+        f.write("#ifndef GOLDEN_V2_VECTORS_H\n#define GOLDEN_V2_VECTORS_H\n\n")
+        f.write('#include "aggregation_math.h"\n\n')
+        f.write("typedef struct {\n")
+        f.write("    const char *name;\n")
+        f.write("    uint64_t prev_price;\n")
+        f.write("    uint32_t outlier_bps;\n")
+        f.write("    uint32_t big_move_bps;\n")
+        f.write("    uint32_t quote_count;\n")
+        f.write("    quote_entry_t quotes[7];\n")
+        f.write("    aggregation_output_t expected;\n")
+        f.write("} golden_v2_case_t;\n\n")
+
+        f.write(f"static const golden_v2_case_t GOLDEN_V2_CASES[{len(cases)}] = {{\n")
+        for c in cases:
+            f.write("    {\n")
+            f.write(f'        .name = "{c["name"]}",\n')
+            f.write(f'        .prev_price = {c["prev_price"]}ULL,\n')
+            f.write(f'        .outlier_bps = {c["outlier_bps"]},\n')
+            f.write(f'        .big_move_bps = {c["big_move_bps"]},\n')
+            f.write(f'        .quote_count = {len(c["quotes"])},\n')
+            f.write("        .quotes = {\n")
+            for q in c["quotes"]:
+                f.write(f'            {{{q["price"]}ULL, {q["source_ts"]}ULL}},\n')
+            f.write("        },\n")
+            exp = c["expected"]
+            f.write("        .expected = {\n")
+            f.write(f'            .price = {exp["price"]}ULL,\n')
+            f.write(f'            .confidence_bps = {exp["confidence_bps"]}ULL,\n')
+            f.write(f'            .flags = {exp["flags"]},\n')
+            f.write(f'            .contributor_count = {exp["contributor_count"]},\n')
+            f.write(f'            .success = {"true" if exp["success"] else "false"}\n')
+            f.write("        }\n")
+            f.write("    },\n")
+        f.write("};\n\n")
+        f.write(f"#define GOLDEN_V2_CASES_COUNT {len(cases)}\n\n")
+        f.write("#endif /* GOLDEN_V2_VECTORS_H */\n")
+
+    print(f"Generated {len(cases)} golden vector fixtures in {json_path} and {h_path}")
+
+if __name__ == "__main__":
+    main()

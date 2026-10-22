@@ -14,8 +14,13 @@ make test-simulation
 make test-hardening
 make test-math-golden
 make test-math-checked
+make test-v2-math
+make test-v2-golden
+make test-v2-contracts
+make test-v2-shadow-parity
 make fuzz-math
 make fuzz-contracts
+make fuzz-v2-contracts
 make lint-c
 make lint-claims
 make verify-claims
