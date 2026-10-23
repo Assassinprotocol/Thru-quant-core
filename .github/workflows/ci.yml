@@ -135,6 +135,7 @@ jobs:
           mkdir -p ~/.thru/sdk/toolchain ~/.thru/sdk/c
           curl -sL https://github.com/Unto-Labs/thru/releases/download/v0.4.2/thru-toolchain-Linux-x86_64-v0.4.2.tar.gz | tar -xz --strip-components=1 -C ~/.thru/sdk/toolchain
           curl -sL https://github.com/Unto-Labs/thru/releases/download/v0.4.2/thru-program-sdk-c-v0.4.2.tar.gz | tar -xz --strip-components=1 -C ~/.thru/sdk/c
+          make -C ~/.thru/sdk/c BASEDIR=~/.thru/sdk/c/ BUILDDIR=thru-sdk all lib include
 
       - name: Verify ABI Codegen Parity
         run: |
