@@ -1,0 +1,20 @@
+{
+  "name": "@thru-quant/indexer",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Event indexer and persistent state store for Thru Oracle v2",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@thru-quant/core-sdk": "file:../sdk",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.11.5",
+    "typescript": "^5.4.5"
+  }
+}
