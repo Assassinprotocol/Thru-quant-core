@@ -28,6 +28,7 @@ node_modules/
 package-lock.json
 sdk/dist/
 indexer/dist/
+gateway/dist/
 *.map
 
 # Runtime data & logs

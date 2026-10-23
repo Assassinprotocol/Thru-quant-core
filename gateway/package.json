@@ -1,0 +1,22 @@
+{
+  "name": "@thru-quant/gateway",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "High-throughput REST and SSE API Gateway v2 for Thru Quant Core",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.1",
+    "@fastify/rate-limit": "^11.2.1",
+    "@thru-quant/core-sdk": "file:../sdk",
+    "@thru-quant/indexer": "file:../indexer",
+    "fastify": "^5.12.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  }
+}

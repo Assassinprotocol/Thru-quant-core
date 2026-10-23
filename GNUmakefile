@@ -145,7 +145,10 @@ test-v2-shadow-parity:
 test-indexer:
 	node --test indexer/test/*.test.ts
 
-all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math test-v2-golden test-v2-contracts test-v2-shadow-parity fuzz-math fuzz-contracts fuzz-v2-contracts lint-c lint-claims verify-claims test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk test-indexer run-example
+test-gateway:
+	node --test gateway/test/*.test.ts
+
+all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math test-v2-golden test-v2-contracts test-v2-shadow-parity fuzz-math fuzz-contracts fuzz-v2-contracts lint-c lint-claims verify-claims test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk test-indexer test-gateway run-example
 
 coverage:
 	bash scripts/coverage_gate.sh

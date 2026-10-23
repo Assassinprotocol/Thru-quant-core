@@ -1,0 +1,222 @@
+openapi: 3.1.0
+info:
+  title: Thru Price Hub API
+  version: 2.0.0
+  description: High-throughput, deterministic REST and SSE Oracle API Gateway for Thru Network
+servers:
+  - url: http://localhost:8080
+    description: Local Gateway Daemon
+paths:
+  /v2/health:
+    get:
+      summary: Health & Liveness Probe
+      description: Returns service liveness, uptime, and last synced slot
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: "ok" }
+                  version: { type: string, example: "2.0.0" }
+                  uptimeSeconds: { type: integer, example: 42 }
+                  syncedSlot: { type: string, example: "2598462" }
+
+  /v2/feeds:
+    get:
+      summary: List Active Consensus Feeds
+      description: Returns latest consensus price, confidence intervals, and flags across Core-6 symbols
+      parameters:
+        - in: query
+          name: strict
+          schema: { type: boolean }
+          description: Enforce freshness; returns 412 if any feed is stale
+        - in: header
+          name: X-Oracle-Mode
+          schema: { type: string, enum: ["standard", "strict"] }
+          description: Mode selection header
+      responses:
+        '200':
+          description: Active feeds list
+          headers:
+            x-oracle-slot:
+              schema: { type: string }
+              description: Maximum consensus slot across returned feeds
+            x-oracle-version:
+              schema: { type: string, example: "2" }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Feed'
+                  count: { type: integer }
+                  serverTime: { type: string, format: date-time }
+        '412':
+          description: Precondition Failed (stale feed detected under strict mode)
+
+  /v2/feeds/{symbol}:
+    get:
+      summary: Get Feed by Symbol or ID
+      description: Retrieve canonical consensus state and confidence bounds for a single symbol
+      parameters:
+        - in: path
+          name: symbol
+          required: true
+          schema: { type: string }
+          description: Symbol alias (e.g. BTC, BTC/USD, BTCUSDT) or numeric ID (0)
+      responses:
+        '200':
+          description: Feed snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Feed'
+        '404':
+          description: Symbol not found or uninitialized
+
+  /v2/feeds/{symbol}/history:
+    get:
+      summary: Historical Consensus Prices
+      description: Returns recent price points for the specified symbol
+      parameters:
+        - in: path
+          name: symbol
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        '200':
+          description: Historical time-series points
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  symbol: { type: string }
+                  symbolId: { type: integer }
+                  points: { type: integer }
+                  prices:
+                    type: array
+                    items: { type: number }
+
+  /v2/feeds/{symbol}/stream:
+    get:
+      summary: Server-Sent Events (SSE) Stream
+      description: Live streaming price and confidence updates for a single symbol
+      parameters:
+        - in: path
+          name: symbol
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Continuous text/event-stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  /v2/risk:
+    get:
+      summary: Quantitative Risk Signals
+      description: Returns rolling realized volatilities (30m, 1h, 24h), market regime, and depeg indices
+      responses:
+        '200':
+          description: Active risk signals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RiskSignal'
+                  count: { type: integer }
+                  evaluatedAt: { type: string, format: date-time }
+
+  /v2/provenance/{slot}:
+    get:
+      summary: Cryptographic Provenance Audit
+      description: Validates slot execution against on-chain block commitment
+      parameters:
+        - in: path
+          name: slot
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Provenance verification record
+
+  /v2/publishers:
+    get:
+      summary: Publisher Quorum Configuration
+      description: Returns active publisher set and consensus parameters
+      responses:
+        '200':
+          description: Quorum registry parameters
+
+  /metrics:
+    get:
+      summary: Prometheus Metrics
+      description: Standard Prometheus text format exposition
+      responses:
+        '200':
+          description: Plaintext metrics
+          content:
+            text/plain:
+              schema: { type: string }
+
+components:
+  schemas:
+    Feed:
+      type: object
+      properties:
+        symbolId: { type: integer }
+        symbol: { type: string, example: "BTC/USD" }
+        price: { type: number, example: 84000.0 }
+        priceRaw: { type: string, example: "8400000000000" }
+        confidenceBps: { type: integer, example: 25 }
+        confidenceLowerBound: { type: number, example: 83790.0 }
+        confidenceUpperBound: { type: number, example: 84210.0 }
+        publishSlot: { type: string, example: "2598462" }
+        prevPublishSlot: { type: string, example: "2598450" }
+        medianSourceTs: { type: string, example: "1700000000" }
+        ageSeconds: { type: integer, example: 4 }
+        contributorCount: { type: integer, example: 5 }
+        contributorMask: { type: integer, example: 31 }
+        flags: { type: integer, example: 0 }
+        isStale: { type: boolean, example: false }
+        isBigMove: { type: boolean, example: false }
+        isLowConfidence: { type: boolean, example: false }
+        hadOutlierRejected: { type: boolean, example: false }
+        provenance:
+          type: object
+          properties:
+            slot: { type: string }
+            accountAddress: { type: string }
+            magic: { type: string, example: "0x54464545" }
+
+    RiskSignal:
+      type: object
+      properties:
+        symbolId: { type: integer }
+        symbol: { type: string, example: "BTC/USD" }
+        slot: { type: string }
+        rollingVol30mBps: { type: integer, example: 45 }
+        rollingVol1hBps: { type: integer, example: 78 }
+        rollingVol24hBps: { type: integer, example: 120 }
+        regime: { type: string, enum: ["CALM", "ELEVATED_VOL", "EXTREME_DISPERSION"] }
+        regimeId: { type: integer }
+        depegBps: { type: integer, example: 0 }
+        updatedAt: { type: string, format: date-time }
