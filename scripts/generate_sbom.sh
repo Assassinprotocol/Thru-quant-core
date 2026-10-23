@@ -9,9 +9,9 @@ mkdir -p "docs/audit"
 
 echo "=== Generating Thru Quant Core Software Bill of Materials (SBOM) ==="
 
-GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
-BUILD_TIMESTAMP=$(git log -1 --format=%cI 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT="v0.3.0-betanet"
+GIT_BRANCH="main"
+BUILD_TIMESTAMP="2026-10-24T00:00:00Z"
 
 cat << EOF > "$OUTPUT_FILE"
 {

@@ -2,17 +2,17 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:thru-quant-core-051e0503",
+  "serialNumber": "urn:uuid:thru-quant-core-v0.3.0-b",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-10-24T01:43:24+07:00",
+    "timestamp": "2026-10-24T00:00:00Z",
     "component": {
       "type": "application",
       "name": "thru_quant_core",
       "version": "0.3.0",
       "description": "Deterministic sovereign quantitative oracle and risk engine on Thru Network",
       "properties": [
-        { "name": "git:commit", "value": "051e050331987c4a5eb122a9c93ee6b57140914c" },
+        { "name": "git:commit", "value": "v0.3.0-betanet" },
         { "name": "git:branch", "value": "main" },
         { "name": "target:architecture", "value": "riscv64imc" }
       ]
