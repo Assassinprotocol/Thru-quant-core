@@ -132,8 +132,9 @@ jobs:
       - name: Install Thru CLI and Toolchain
         run: |
           npm install -g thru@0.4.2
-          thru dev toolchain install
-          thru dev sdk install c
+          mkdir -p ~/.thru/sdk/toolchain ~/.thru/sdk/c
+          curl -sL https://github.com/Unto-Labs/thru/releases/download/v0.4.2/thru-toolchain-Linux-x86_64-v0.4.2.tar.gz | tar -xz --strip-components=1 -C ~/.thru/sdk/toolchain
+          curl -sL https://github.com/Unto-Labs/thru/releases/download/v0.4.2/thru-program-sdk-c-v0.4.2.tar.gz | tar -xz --strip-components=1 -C ~/.thru/sdk/c
 
       - name: Verify ABI Codegen Parity
         run: |
