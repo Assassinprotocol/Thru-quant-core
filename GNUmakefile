@@ -175,7 +175,13 @@ test-drills:
 drills:
 	bash scripts/drills/drill_runner.sh
 
-all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math test-v2-golden test-v2-contracts test-v2-shadow-parity fuzz-math fuzz-contracts fuzz-v2-contracts lint-c lint-claims verify-claims check-links drills test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk test-indexer test-gateway test-web test-mcp test-time-to-first-price test-partner run-example
+slo-check:
+	bash scripts/slo_check.sh
+
+generate-sbom:
+	bash scripts/generate_sbom.sh
+
+all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math test-v2-golden test-v2-contracts test-v2-shadow-parity fuzz-math fuzz-contracts fuzz-v2-contracts lint-c lint-claims verify-claims check-links drills slo-check generate-sbom test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk test-indexer test-gateway test-web test-mcp test-time-to-first-price test-partner run-example
 
 coverage:
 	bash scripts/coverage_gate.sh

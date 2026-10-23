@@ -1,0 +1,61 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:thru-quant-core-b4147ffa",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-23T18:41:02Z",
+    "component": {
+      "type": "application",
+      "name": "thru_quant_core",
+      "version": "0.3.0",
+      "description": "Deterministic sovereign quantitative oracle and risk engine on Thru Network",
+      "properties": [
+        { "name": "git:commit", "value": "b4147ffa0c67e41b206e0845aae780c19169668a" },
+        { "name": "git:branch", "value": "main" },
+        { "name": "target:architecture", "value": "riscv64imc" }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "framework",
+      "name": "thru_math",
+      "version": "1.0.0",
+      "scope": "required",
+      "description": "Checked Q64.64 fixed-point math library with range reduction"
+    },
+    {
+      "type": "framework",
+      "name": "market_oracle_c",
+      "version": "0.3.0",
+      "scope": "required",
+      "description": "On-chain core market oracle contract for ThruVM"
+    },
+    {
+      "type": "library",
+      "name": "@thru-quant/core-sdk",
+      "version": "0.3.0",
+      "purl": "pkg:npm/%40thru-quant/core-sdk@0.3.0"
+    },
+    {
+      "type": "application",
+      "name": "@thru-quant/indexer",
+      "version": "0.1.0",
+      "purl": "pkg:npm/%40thru-quant/indexer@0.1.0"
+    },
+    {
+      "type": "application",
+      "name": "@thru-quant/gateway-v2",
+      "version": "0.2.0",
+      "purl": "pkg:npm/%40thru-quant/gateway-v2@0.2.0"
+    },
+    {
+      "type": "application",
+      "name": "thru_quant_portal",
+      "version": "0.1.0",
+      "purl": "pkg:npm/thru_quant_portal@0.1.0"
+    }
+  ]
+}

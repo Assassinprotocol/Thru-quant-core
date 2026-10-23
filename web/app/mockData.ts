@@ -1,4 +1,4 @@
-import type { OracleFeed, RiskSignal } from "./types";
+import type { OracleFeed, RiskSignal, PublisherOperator } from "./types";
 
 function toQ64Hex(val: number): string {
   const intPart = BigInt(Math.floor(val));
@@ -198,7 +198,7 @@ export function createInitialRiskSignals(feeds: OracleFeed[]): RiskSignal[] {
   });
 }
 
-export function createInitialPublishers(): import("./types").PublisherOperator[] {
+export function createInitialPublishers(): PublisherOperator[] {
   return [
     {
       id: "pub_01",
