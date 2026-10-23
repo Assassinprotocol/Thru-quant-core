@@ -1,105 +1,105 @@
-# Thru Quant Core — 5-Minute Developer Quickstart
+# Thru Quant Core — Developer Quickstart
 
-Integrate real-time market data, deterministic fixed-point Q64.64 prices, and automated risk guards into your Thru dApp, lending protocol, or autonomous quant bot in under 5 minutes.
+Integrate decentralized multi-publisher market data, zero-copy MAD consensus prices, and conservative risk guards into your dApp, DeFi lending protocol, or autonomous quant agent in under 5 minutes.
 
 ---
 
 ## 1. Quick Installation
 
-### Option A: Direct Repository Use (Zero External NPM Dependencies)
+### Option A: Direct SDK Dependency (TypeScript / ESM)
 ```bash
-git clone https://github.com/Assassinprotocol/Thru-quant-core.git
-cd Thru-quant-core/sdk
-npm install
-npm run build
+npm install @thru-quant/core-sdk
+```
+Or link locally in this monorepo:
+```bash
+cd sdk && npm install && npm run build
 ```
 
-### Option B: Standalone Single-File Drop-In
-Copy `sdk/dist/thru-oracle.js` into your project. It works in vanilla Node.js (v18+), Bun, Deno, or modern browsers with zero external dependencies.
+### Option B: Standalone Drop-in
+Copy `sdk/dist/thru-oracle.js` into your project. Works in Node.js (v18+), Bun, Deno, or modern browsers with zero external dependencies.
 
 ---
 
-## 2. Read On-Chain Oracle State in 4 Lines
+## 2. Read Oracle Prices in 3 Lines
 
-Create `read_oracle.mjs`:
+```typescript
+import { OracleClient } from "@thru-quant/core-sdk";
 
-```javascript
-import { OracleClient } from "./sdk/dist/client.js";
+const client = new OracleClient({ daemonUrl: "http://localhost:8080" });
+const quote = await client.getLatestPrice("BTC/USD");
 
-const client = new OracleClient({
-  daemonUrl: "http://localhost:8082",                   // Local HTTP Daemon
-  rpcUrl: "https://alphanet.thru.network/rpc",          // Alphanet Fallback
+console.log(`[Thru Oracle] ${quote.symbol}: $${quote.price} ± ${quote.confidence} (Slot #${quote.slot})`);
+```
+
+---
+
+## 3. DeFi Conservative Valuation (Collateral vs. Debt)
+
+Protocols must evaluate loan-to-value solvency conservatively using the asymmetric confidence interval:
+
+```typescript
+import { OracleClient } from "@thru-quant/core-sdk";
+
+const client = new OracleClient({ daemonUrl: "http://localhost:8080" });
+
+// Conservative Collateral: P - k * conf
+const col = await client.calculateSafeValuation("ETH/USD", "collateral", { k: 1.0 });
+console.log(`Safe Collateral Price: $${col.safePrice} (Raw: $${col.rawPrice})`);
+
+// Conservative Debt: P + k * conf
+const debt = await client.calculateSafeValuation("USDC/USD", "debt", { k: 1.0 });
+console.log(`Safe Debt Price: $${debt.safePrice} (Raw: $${debt.rawPrice})`);
+```
+
+---
+
+## 4. Real-Time Streaming via SSE
+
+Subscribe to continuous on-chain slot updates without polling:
+
+```typescript
+const unsubscribe = client.watchFeed("SOL/USD", (update) => {
+  console.log(`Live Update: Slot #${update.slot} -> $${update.price} (Flags: ${update.flagsList.join(",")})`);
 });
 
-// Fetch latest on-chain state
-const state = await client.getLatestState();
-console.log(`Oracle Version: ${state.version} | Regime: ${state.regimeName}`);
-
-// Read BTC quote in O(1) constant time
-const btc = state.bySymbol["BTCUSDT"];
-console.log(`BTC Price: $${btc.priceDecimal} (Volatility: ${btc.volatilityBps} bps)`);
-```
-
-Run with:
-```bash
-node read_oracle.mjs
+// To disconnect later:
+// unsubscribe();
 ```
 
 ---
 
-## 3. Automated Pre-Trade Risk Evaluation
+## 5. Local Services & Telemetry
 
-Protect your lending liquidations or trading bot from stale or halted oracles:
+### Sovereign Stack Architecture
 
-```javascript
-import { OracleClient, evaluateRiskGate } from "./sdk/dist/index.js";
-
-const client = new OracleClient();
-const state = await client.getLatestState();
-
-// Evaluate BTC against pre-trade risk policies
-const risk = evaluateRiskGate(state, "BTCUSDT", {
-  maxAgeSec: 120,          // Reject if data older than 2 minutes
-  maxVolatilityBps: 300,   // Volatility spike limit (3.00%)
-});
-
-if (!risk.passed) {
-  console.error("TRADE HALTED:", risk.reason);
-} else if (risk.haircutPercent > 0) {
-  console.warn(`APPLYING ${risk.haircutPercent}% COLLATERAL HAIRCUT:`, risk.reason);
-} else {
-  console.log("TRADE AUTHORIZED at price:", risk.quote.priceDecimal);
-}
+```mermaid
+flowchart LR
+    ThruChain["Thru L1 Validator Network"] -->|"Binary Wire (64B)"| Indexer["PostgreSQL Indexer Daemon"]
+    Indexer -->|"Store Slots & Quotes"| DB[("PostgreSQL 16")]
+    DB -->|"Query Cache & Provenance"| Gateway["Gateway v2 Daemon (:8080)"]
+    Gateway -->|"REST & SSE Events"| Web["Web Telemetry Hub (:3000)"]
+    Gateway -->|"Tool Executions"| MCP["MCP Server (stdio)"]
+    Gateway -->|"OracleClient"| SDK["TypeScript SDK / DApps"]
+    MCP -->|"Context & Tools"| Agent["Autonomous AI Agents"]
 ```
 
----
-
-## 4. Operator CLI Diagnostics
-
-Check oracle health and asset quotes directly from your terminal:
+### Running the Full Sovereign Stack
 
 ```bash
-# View summary table of all 28 tracked assets and breaker state
-./sdk/bin/cli.js status
+# 1. Start Gateway v2 API Daemon (Port 8080)
+cd gateway && npm run build && npm start
 
-# Inspect deep quote structure for a specific ticker
-./sdk/bin/cli.js quote BTCUSDT
+# 2. Launch Sovereign Web Telemetry Portal (Port 3000)
+cd web && npm run build && npm start
 
-# Deserialize raw hex or base64 wire payload
-./sdk/bin/cli.js decode <raw_hex_string>
+# 3. Start Model Context Protocol (MCP) Server for AI Agents
+node mcp/dist/index.js
 ```
 
 ---
 
-## 5. Frequently Asked Questions (FAQ)
+## 6. Integration Playbooks
 
-### What is Q64.64 fixed-point arithmetic?
-On-chain contracts in ThruVM do not use floating-point numbers. Prices are stored as two 64-bit integer limbs: high 64 bits (integer part) and low 64 bits (fractional part scaled by $2^{64}$). Use `q64ToDecimalString(hi, lo)` in the SDK to guarantee zero precision loss.
-
-### What should I do if `circuitBreakerActive` is `true`?
-The circuit breaker trips if single-slot price deviation exceeds 5% (500 bps). All automated liquidations and trades MUST be paused until an authorized key submits the `RESUME` instruction (`020000000200`).
-
-### Where can I inspect live Alphanet data?
-The verified Alphanet Oracle storage account is:
-`taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN`
-Slot: `7743340` (and advancing).
+- [DeFi Lending Playbook](playbooks/lending.md) — Asymmetric confidence bands, health factor derivation, and liquidation thresholds.
+- [Perpetual DEX Playbook](playbooks/perp-dex.md) — Mark price smoothing, funding rate TWAP, and volatility flag discipline.
+- [Autonomous Agent Guide](playbooks/autonomous-agents.md) — Setting up Claude, Cursor, and LLM trading agents via MCP.
