@@ -159,4 +159,14 @@ describe("Gateway v2 API", () => {
     assert.ok(res.body.includes("thru_oracle_v2_price{symbol=\"BTC_USD\"} 84000"));
     assert.ok(res.body.includes("thru_oracle_v2_confidence_bps{symbol=\"BTC_USD\"} 25"));
   });
+
+  test("GET /v2/publishers returns operator quorum and participation metrics", async () => {
+    const res = await app.inject({ method: "GET", url: "/v2/publishers" });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    assert.equal(body.tier, "T2");
+    assert.equal(body.activeCount, 3);
+    assert.ok(body.publishers.length >= 3);
+    assert.equal(body.publishers[0].status, "ACTIVE");
+  });
 });

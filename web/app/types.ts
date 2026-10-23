@@ -46,3 +46,15 @@ export interface TelemetryStatus {
   p99LatencyUs: number;
   gatewayUrl: string;
 }
+
+export interface PublisherOperator {
+  id: string;
+  name: string;
+  pubkey: string;
+  region: string;
+  uptimePercent: number;
+  slotsParticipated: number;
+  lastSlot: number;
+  medianDeltaBps: number;
+  status: "ACTIVE" | "DEGRADED" | "OFFLINE";
+}

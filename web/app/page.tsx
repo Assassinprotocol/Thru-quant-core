@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import type { OracleFeed, RiskSignal, TelemetryStatus } from "./types";
-import { createInitialFeeds, createInitialRiskSignals } from "./mockData";
+import type { OracleFeed, RiskSignal, TelemetryStatus, PublisherOperator } from "./types";
+import { createInitialFeeds, createInitialRiskSignals, createInitialPublishers } from "./mockData";
 import { Header } from "./components/Header";
 import { SloMetrics } from "./components/SloMetrics";
 import { FeedGrid } from "./components/FeedGrid";
 import { FeedDeepDive } from "./components/FeedDeepDive";
+import { PublisherLeaderboard } from "./components/PublisherLeaderboard";
 import { RiskMonitor } from "./components/RiskMonitor";
 import { Playground } from "./components/Playground";
 
 export default function Home() {
   const [feeds, setFeeds] = useState<OracleFeed[]>(() => createInitialFeeds());
   const [riskSignals, setRiskSignals] = useState<RiskSignal[]>(() => createInitialRiskSignals(feeds));
+  const [publishers, setPublishers] = useState<PublisherOperator[]>(() => createInitialPublishers());
   const [selectedSymbol, setSelectedSymbol] = useState<string>("BTC/USD");
   const [status, setStatus] = useState<TelemetryStatus>({
     connected: true,
@@ -86,6 +88,20 @@ export default function Home() {
                 }
               };
               eventSourceRef.current = es;
+            }
+
+            try {
+              const pubRes = await fetch(`${status.gatewayUrl}/v2/publishers`, {
+                signal: AbortSignal.timeout(2000),
+              });
+              if (pubRes.ok && isSubscribed) {
+                const pubData = await pubRes.json();
+                if (Array.isArray(pubData.publishers) && pubData.publishers.length > 0) {
+                  setPublishers(pubData.publishers);
+                }
+              }
+            } catch {
+              // Maintain local state if endpoint times out
             }
             return;
           }
@@ -188,6 +204,8 @@ export default function Home() {
         />
 
         <FeedDeepDive feed={selectedFeed} />
+
+        <PublisherLeaderboard publishers={publishers} />
 
         <RiskMonitor signals={riskSignals} />
 

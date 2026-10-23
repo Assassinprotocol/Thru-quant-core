@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  publisher:
+    image: golang:1.22-alpine
+    container_name: thru_publisher_node
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ../:/app:ro
+      - publisher_keys:/keys:ro
+    environment:
+      - THRU_RPC_URL=${THRU_RPC_URL:-https://rpc.betanet.thru.org}
+      - ORACLE_PROGRAM_ID=${ORACLE_PROGRAM_ID:-taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR}
+      - PUBLISHER_KEY_FILE=/keys/publisher.key
+      - VENUES=${VENUES:-binance,coinbase,okx,kraken}
+      - METRICS_PORT=9100
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "9100:9100"
+    command: ["go", "run", "cmd/feeder/main.go", "--quorum"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9100/health || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.50'
+
+volumes:
+  publisher_keys:

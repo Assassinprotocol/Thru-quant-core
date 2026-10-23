@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createInitialFeeds, createInitialRiskSignals } from "../app/mockData.ts";
+import { createInitialFeeds, createInitialRiskSignals, createInitialPublishers } from "../app/mockData.ts";
 
 test("Web Portal: Core-6 feeds are initialized with valid parameters", () => {
   const feeds = createInitialFeeds();
@@ -40,4 +40,15 @@ test("Web Portal: Stablecoin depeg signals are correctly classified", () => {
   assert.ok(solSignal);
   assert.equal(solSignal.regime, "VOLATILE_EXPANSION");
   assert.ok(solSignal.volatility15mBps > 50, "SOL volatility should be high");
+});
+
+test("Web Portal: Tier T2 publishers are initialized with valid quorum", () => {
+  const publishers = createInitialPublishers();
+  assert.ok(publishers.length >= 3, "Must have at least 3 publishers for T2 quorum");
+  for (const pub of publishers) {
+    assert.ok(pub.id.startsWith("pub_"));
+    assert.ok(pub.pubkey.length > 20);
+    assert.ok(pub.uptimePercent > 99.0);
+    assert.equal(pub.status, "ACTIVE");
+  }
 });

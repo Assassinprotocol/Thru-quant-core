@@ -279,12 +279,44 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
 
   app.get("/v2/publishers", async () => {
     return {
+      tier: "T2",
       minQuorum: 3,
       maxPublishers: 7,
-      registeredPublishers: [
-        { publisherIndex: 0, pubkey: "0xpub1...", active: true },
-        { publisherIndex: 1, pubkey: "0xpub2...", active: true },
-        { publisherIndex: 2, pubkey: "0xpub3...", active: true },
+      activeCount: 3,
+      publishers: [
+        {
+          id: "pub_01",
+          name: "Thru Foundation Primary",
+          pubkey: "taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR",
+          region: "ap-southeast-1",
+          uptimePercent: 99.98,
+          slotsParticipated: 14280,
+          lastSlot: 1492250,
+          medianDeltaBps: 1.2,
+          status: "ACTIVE",
+        },
+        {
+          id: "pub_02",
+          name: "Sovereign Node EU",
+          pubkey: "taQbv8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN",
+          region: "eu-central-1",
+          uptimePercent: 99.85,
+          slotsParticipated: 14261,
+          lastSlot: 1492249,
+          medianDeltaBps: 2.1,
+          status: "ACTIVE",
+        },
+        {
+          id: "pub_03",
+          name: "Validator Guild US",
+          pubkey: "taKmn7gB1Whl5nBG1YqWj0oKJMVL8bPbdfRnikkn1JB",
+          region: "us-east-1",
+          uptimePercent: 99.42,
+          slotsParticipated: 14205,
+          lastSlot: 1492248,
+          medianDeltaBps: 3.5,
+          status: "ACTIVE",
+        },
       ],
     };
   });
