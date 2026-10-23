@@ -1,0 +1,20 @@
+{
+  "name": "@thru-quant/mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Model Context Protocol (MCP) server for Thru Quant Core Oracle",
+  "bin": {
+    "thru-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@thru-quant/core-sdk": "file:../sdk"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  }
+}

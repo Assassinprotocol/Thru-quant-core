@@ -208,3 +208,34 @@ export interface OracleClientOptions {
   programId?: string;         // Pinned Oracle Program ID (taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR)
   timeoutMs?: number;
 }
+
+export interface LatestPriceOptions {
+  strict?: boolean;
+}
+
+export interface LatestPriceResult {
+  symbol: string;
+  price: number;
+  confidence: number;
+  slot: number;
+  timestamp: number;
+  flags: number;
+  flagsList: string[];
+  publishersCount?: number;
+  totalPublishers?: number;
+}
+
+export interface SafeValuationOptions {
+  k?: number;
+  strict?: boolean;
+}
+
+export interface SafeValuationResult {
+  symbol: string;
+  positionType: "collateral" | "debt";
+  safePrice: number;
+  rawPrice: number;
+  confidence: number;
+  slot: number;
+  k: number;
+}

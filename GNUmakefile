@@ -154,7 +154,16 @@ build-web:
 test-web:
 	cd web && npm test
 
-all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math test-v2-golden test-v2-contracts test-v2-shadow-parity fuzz-math fuzz-contracts fuzz-v2-contracts lint-c lint-claims verify-claims test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk test-indexer test-gateway test-web run-example
+build-mcp:
+	cd mcp && npm run build
+
+test-mcp:
+	node --test mcp/test/*.test.ts
+
+test-time-to-first-price:
+	node --test tests/test_time_to_first_price.ts
+
+all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math test-v2-golden test-v2-contracts test-v2-shadow-parity fuzz-math fuzz-contracts fuzz-v2-contracts lint-c lint-claims verify-claims test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk test-indexer test-gateway test-web test-mcp test-time-to-first-price run-example
 
 coverage:
 	bash scripts/coverage_gate.sh

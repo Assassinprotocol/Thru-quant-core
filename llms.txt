@@ -1,0 +1,64 @@
+# Thru Quant Core
+
+> Multi-publisher, zero-copy, sub-microsecond decentralized oracle and quant risk engine for ThruVM.
+
+## Architecture
+
+- **Wire Specification:** 64-byte aligned binary wire payload per feed. Magic header `0x54485255` ("THRU"), version `0x02`.
+- **Consensus Filter:** Constant-time Median Absolute Deviation (MAD, $k=1.4826$). Rejects malicious outlier quotes without floating point indeterminism.
+- **Fixed-Point Arithmetic:** Q64.64 signed and unsigned fixed-point integers (64-bit integer, 64-bit fraction, where $1.0 = 2^{64}$).
+- **Status Flags:** Bitwise flags: `0x00` (VALID), `0x01` (BIG_MOVE), `0x02` (LOW_CONFIDENCE), `0x04` (STALE), `0x08` (CIRCUIT_BREAKER).
+
+## DeFi Safe Valuation Formula
+
+When evaluating loan-to-value (LTV) or margin solvency, protocols MUST NOT use raw median price directly. Protocols must evaluate asymmetric conservative valuation based on confidence interval:
+
+- **Collateral Assets:** $V_{\text{collateral}} = \max(0, P - k \cdot \text{confidence})$
+- **Debt Obligations:** $V_{\text{debt}} = P + k \cdot \text{confidence}$
+- Default parameter $k = 1.0$ (or $k = 1.4826$ for 95% confidence bounds).
+
+## API Gateway v2 Endpoints
+
+Default base URL: `http://localhost:8080`
+
+- `GET /v2/health` — Liveness, current slot, and PostgreSQL sync checkpoint.
+- `GET /v2/feeds` — List all active feeds with latest price, confidence, and freshness age.
+- `GET /v2/feeds/:symbol` — Detailed single feed state (e.g. `/v2/feeds/BTC` or `/v2/feeds/BTC/USD`). Pass header `X-Oracle-Mode: strict` to enforce 60s freshness SLA (returns 412 if stale).
+- `GET /v2/feeds/:symbol/history` — Historical snapshots and OHLC/TWAP data.
+- `GET /v2/feeds/:symbol/stream` — Real-time Server-Sent Events (SSE) broadcasting updates on every slot.
+- `GET /v2/risk` — Rolling EWMA volatility (15-min and 1-hour basis points), stablecoin depeg ratios, and regime classifications (`NEUTRAL`, `TRENDING_UP`, `TRENDING_DOWN`, `VOLATILE_EXPANSION`, `COMPRESSION`).
+- `GET /v2/provenance/:slot` — Cryptographic provenance audit data and Ed25519 signature quorum verification.
+- `GET /metrics` — Prometheus gauge instrumentation.
+
+## Model Context Protocol (MCP) Server
+
+AI agents connect via standard JSON-RPC 2.0 stdio:
+
+- **Executable:** `node mcp/dist/index.js`
+- **Environment Variable:** `THRU_GATEWAY_URL=http://localhost:8080`
+- **Exposed Tools:**
+  - `read_oracle_feed`: Reads latest price, confidence band, and flags for a token pair.
+  - `get_historical_twap`: Computes Time-Weighted Average Price across slot intervals.
+  - `get_risk_signals`: Returns rolling volatility, depeg status, and regime marker.
+  - `verify_slot_provenance`: Verifies cryptographic provenance audit data.
+
+## TypeScript SDK (@thru-quant/core-sdk)
+
+```typescript
+import { OracleClient } from "@thru-quant/core-sdk";
+
+const client = new OracleClient({ daemonUrl: "http://localhost:8080" });
+
+// 1. Fetch latest consolidated feed
+const quote = await client.getLatestPrice("BTC/USD", { strict: true });
+console.log(`BTC: $${quote.price} ± ${quote.confidence} (Slot #${quote.slot})`);
+
+// 2. Compute safe asymmetric valuation for DeFi lending
+const val = await client.calculateSafeValuation("ETH/USD", "collateral", { k: 1.0 });
+console.log(`Safe Collateral Price: $${val.safePrice} (Raw: $${val.rawPrice})`);
+
+// 3. Subscribe to real-time slot updates via SSE
+const unsubscribe = client.watchFeed("SOL/USD", (update) => {
+  console.log("Slot update:", update.slot, update.price);
+});
+```

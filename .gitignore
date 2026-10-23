@@ -29,6 +29,7 @@ package-lock.json
 sdk/dist/
 indexer/dist/
 gateway/dist/
+mcp/dist/
 web/.next/
 web/out/
 *.map

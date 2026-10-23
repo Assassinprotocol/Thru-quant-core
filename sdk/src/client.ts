@@ -4,6 +4,10 @@ import {
   type OracleEntry,
   type RiskGateOptions,
   type RiskEvaluationResult,
+  type LatestPriceOptions,
+  type LatestPriceResult,
+  type SafeValuationOptions,
+  type SafeValuationResult,
 } from "./types.ts";
 import { decodeOracleAccount, decodeOracleBase64 } from "./decoder.ts";
 import { evaluateRiskGate } from "./guards.ts";
@@ -168,5 +172,143 @@ export class OracleClient {
     }
 
     return decodeOracleBase64(b64);
+  }
+
+  async getLatestPrice(
+    symbol: string,
+    options?: LatestPriceOptions
+  ): Promise<LatestPriceResult> {
+    const cleanSym = symbol.trim().toUpperCase();
+    const encoded = cleanSym.includes("/") ? cleanSym : `${cleanSym}/USD`;
+
+    try {
+      const headers: Record<string, string> = {};
+      if (options?.strict) {
+        headers["X-Oracle-Mode"] = "strict";
+      }
+
+      const res = await fetch(`${this.daemonUrl}/v2/feeds/${encoded}`, {
+        headers,
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+
+      if (res.status === 412) {
+        throw new Error(`Feed '${symbol}' is stale (exceeds freshness SLA under strict mode)`);
+      }
+
+      if (!res.ok) {
+        throw new Error(`Gateway v2 returned status ${res.status}`);
+      }
+
+      const data = (await res.json()) as any;
+      return {
+        symbol: data.symbol,
+        price: Number(data.price),
+        confidence: Number(data.confidence),
+        slot: Number(data.slot),
+        timestamp: Number(data.timestamp),
+        flags: Number(data.flags ?? 0),
+        flagsList: Array.isArray(data.flagsList) ? data.flagsList : ["VALID"],
+        publishersCount: data.publishersCount,
+        totalPublishers: data.totalPublishers,
+      };
+    } catch (v2Err: any) {
+      if (v2Err.message?.includes("stale")) throw v2Err;
+
+      // Fallback to v1 state query
+      const quote = await this.getQuote(cleanSym.replace("/USD", ""));
+      return {
+        symbol: quote.symbol,
+        price: Number(quote.priceDecimal),
+        confidence: Number(quote.priceDecimal) * (quote.volatilityBps / 10000),
+        slot: 0,
+        timestamp: quote.timestamp,
+        flags: 0,
+        flagsList: ["VALID"],
+      };
+    }
+  }
+
+  watchFeed(
+    symbol: string,
+    callback: (update: LatestPriceResult) => void
+  ): () => void {
+    const controller = new AbortController();
+    const cleanSym = symbol.trim().toUpperCase();
+    const encoded = cleanSym.includes("/") ? cleanSym : `${cleanSym}/USD`;
+    const streamUrl = `${this.daemonUrl}/v2/feeds/${encoded}/stream`;
+
+    (async () => {
+      try {
+        const res = await fetch(streamUrl, {
+          signal: controller.signal,
+          headers: { Accept: "text/event-stream" },
+        });
+
+        if (!res.ok || !res.body) return;
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (!controller.signal.aborted) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop() ?? "";
+
+          for (const block of lines) {
+            const dataLine = block.split("\n").find((l) => l.startsWith("data: "));
+            if (dataLine) {
+              try {
+                const parsed = JSON.parse(dataLine.slice(6));
+                callback({
+                  symbol: parsed.symbol,
+                  price: Number(parsed.price),
+                  confidence: Number(parsed.confidence),
+                  slot: Number(parsed.slot),
+                  timestamp: Number(parsed.timestamp),
+                  flags: Number(parsed.flags ?? 0),
+                  flagsList: Array.isArray(parsed.flagsList) ? parsed.flagsList : ["VALID"],
+                });
+              } catch {
+                // Ignore SSE heartbeat or non-json message
+              }
+            }
+          }
+        }
+      } catch {
+        // Stream aborted or connection lost
+      }
+    })();
+
+    return () => controller.abort();
+  }
+
+  async calculateSafeValuation(
+    symbol: string,
+    positionType: "collateral" | "debt",
+    options?: SafeValuationOptions
+  ): Promise<SafeValuationResult> {
+    const quote = await this.getLatestPrice(symbol, { strict: options?.strict });
+    const k = options?.k ?? 1.0;
+    const band = k * quote.confidence;
+
+    const safePrice =
+      positionType === "collateral"
+        ? Math.max(0, quote.price - band)
+        : quote.price + band;
+
+    return {
+      symbol: quote.symbol,
+      positionType,
+      safePrice,
+      rawPrice: quote.price,
+      confidence: quote.confidence,
+      slot: quote.slot,
+      k,
+    };
   }
 }
