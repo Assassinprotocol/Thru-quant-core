@@ -7,6 +7,16 @@ interface PublisherLeaderboardProps {
   publishers: PublisherOperator[];
 }
 
+const STATUS_BADGE: Record<string, string> = {
+  ACTIVE: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  DEGRADED: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+  OFFLINE: "bg-rose-500/10 text-rose-400 border border-rose-500/20",
+};
+
+function formatKey(key: string): string {
+  return `${key.slice(0, 6)}...${key.slice(-4)}`;
+}
+
 export function PublisherLeaderboard({ publishers }: PublisherLeaderboardProps) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -14,7 +24,7 @@ export function PublisherLeaderboard({ publishers }: PublisherLeaderboardProps) 
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(key);
       setCopiedKey(key);
-      setTimeout(() => setCopiedKey(null), 2000);
+      setTimeout(() => setCopiedKey(null), 1500);
     }
   };
 
@@ -65,7 +75,6 @@ export function PublisherLeaderboard({ publishers }: PublisherLeaderboardProps) 
           <tbody className="divide-y divide-[#1e293b]/50">
             {publishers.map((pub) => {
               const isCopied = copiedKey === pub.pubkey;
-              const shortKey = `${pub.pubkey.slice(0, 6)}...${pub.pubkey.slice(-4)}`;
 
               return (
                 <tr key={pub.id} className="hover:bg-[#13192b]/40 transition-colors">
@@ -79,26 +88,14 @@ export function PublisherLeaderboard({ publishers }: PublisherLeaderboardProps) 
                     <button
                       type="button"
                       onClick={() => handleCopy(pub.pubkey)}
-                      className="inline-flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none"
+                      className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors cursor-pointer"
                       title="Click to copy full public key"
                       aria-label={`Copy public key for ${pub.name}`}
                     >
-                      <span>{shortKey}</span>
-                      <svg
-                        className="h-3 w-3 text-zinc-500 hover:text-zinc-300"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
-                      {isCopied && <span className="text-[10px] text-emerald-400">copied</span>}
+                      <span>{formatKey(pub.pubkey)}</span>
+                      <span className="text-[10px] text-zinc-600 hover:text-zinc-400">
+                        {isCopied ? "[copied]" : "[copy]"}
+                      </span>
                     </button>
                   </td>
                   <td className="py-2.5 pr-3">
@@ -120,12 +117,8 @@ export function PublisherLeaderboard({ publishers }: PublisherLeaderboardProps) 
                   </td>
                   <td className="py-2.5 text-right">
                     <span
-                      className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold ${
-                        pub.status === "ACTIVE"
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          : pub.status === "DEGRADED"
-                          ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                          : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                      className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold ${
+                        STATUS_BADGE[pub.status] ?? STATUS_BADGE.OFFLINE
                       }`}
                     >
                       {pub.status}

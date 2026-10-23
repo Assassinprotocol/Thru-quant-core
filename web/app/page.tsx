@@ -33,12 +33,13 @@ export default function Home() {
 
     async function attemptGatewaySync() {
       try {
-        const res = await fetch(`${status.gatewayUrl}/v2/feeds`, {
-          signal: AbortSignal.timeout(2000),
-        });
+        const [feedsRes, pubRes] = await Promise.allSettled([
+          fetch(`${status.gatewayUrl}/v2/feeds`, { signal: AbortSignal.timeout(2000) }),
+          fetch(`${status.gatewayUrl}/v2/publishers`, { signal: AbortSignal.timeout(2000) }),
+        ]);
 
-        if (res.ok && isSubscribed) {
-          const data = await res.json();
+        if (feedsRes.status === "fulfilled" && feedsRes.value.ok && isSubscribed) {
+          const data = await feedsRes.value.json();
           if (Array.isArray(data.feeds) && data.feeds.length > 0) {
             setFeeds((prev) =>
               prev.map((feed) => {
@@ -46,15 +47,6 @@ export default function Home() {
                 if (!live) return feed;
                 const newPrice = Number(live.price);
                 const newConf = Number(live.confidence);
-                const newHistory = [
-                  ...feed.history.slice(1),
-                  {
-                    slot: live.slot,
-                    timestamp: Math.floor(Date.now() / 1000),
-                    price: newPrice,
-                    confidence: newConf,
-                  },
-                ];
                 return {
                   ...feed,
                   price: newPrice,
@@ -62,7 +54,10 @@ export default function Home() {
                   slot: live.slot,
                   flags: live.flags ?? 0,
                   flagsList: live.flagsList ?? ["VALID"],
-                  history: newHistory,
+                  history: [
+                    ...feed.history.slice(1),
+                    { slot: live.slot, timestamp: Math.floor(Date.now() / 1000), price: newPrice, confidence: newConf },
+                  ],
                 };
               })
             );
@@ -75,39 +70,24 @@ export default function Home() {
               lastUpdateTs: Math.floor(Date.now() / 1000),
             }));
 
-            // Connect SSE for selected feed if not already connected
             if (!eventSourceRef.current && typeof window !== "undefined" && window.EventSource) {
               const symbolParam = selectedSymbol.replace("/", "");
               const es = new EventSource(`${status.gatewayUrl}/v2/feeds/${symbolParam}/stream`);
-              es.onmessage = (event) => {
-                try {
-                  const update = JSON.parse(event.data);
-                  setStatus((s) => ({ ...s, mode: "SSE" }));
-                } catch {
-                  // ignore parse error
-                }
-              };
+              es.onmessage = () => setStatus((s) => ({ ...s, mode: "SSE" }));
               eventSourceRef.current = es;
             }
+          }
+        } else if (isSubscribed) {
+          setStatus((s) => ({ ...s, mode: "SIMULATED" }));
+        }
 
-            try {
-              const pubRes = await fetch(`${status.gatewayUrl}/v2/publishers`, {
-                signal: AbortSignal.timeout(2000),
-              });
-              if (pubRes.ok && isSubscribed) {
-                const pubData = await pubRes.json();
-                if (Array.isArray(pubData.publishers) && pubData.publishers.length > 0) {
-                  setPublishers(pubData.publishers);
-                }
-              }
-            } catch {
-              // Maintain local state if endpoint times out
-            }
-            return;
+        if (pubRes.status === "fulfilled" && pubRes.value.ok && isSubscribed) {
+          const pubData = await pubRes.value.json();
+          if (Array.isArray(pubData.publishers) && pubData.publishers.length > 0) {
+            setPublishers(pubData.publishers);
           }
         }
       } catch {
-        // Gateway not reachable: operate in deterministic simulated live mode
         if (isSubscribed) {
           setStatus((s) => ({ ...s, mode: "SIMULATED" }));
         }

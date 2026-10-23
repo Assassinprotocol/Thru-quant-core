@@ -49,14 +49,20 @@ describe("Gateway v2 High-Throughput Load Benchmark", () => {
 
   test("sustains 5,000 requests with sub-millisecond median latency", async () => {
     const totalRequests = 5000;
+    const concurrency = 20;
     const start = performance.now();
 
-    for (let i = 0; i < totalRequests; i++) {
-      const res = await app.inject({
-        method: "GET",
-        url: "/v2/feeds/BTC",
-      });
-      assert.equal(res.statusCode, 200);
+    for (let i = 0; i < totalRequests; i += concurrency) {
+      const batch = Array.from({ length: Math.min(concurrency, totalRequests - i) }, () =>
+        app.inject({
+          method: "GET",
+          url: "/v2/feeds/BTC",
+        })
+      );
+      const responses = await Promise.all(batch);
+      for (const res of responses) {
+        assert.equal(res.statusCode, 200);
+      }
     }
 
     const durationMs = performance.now() - start;

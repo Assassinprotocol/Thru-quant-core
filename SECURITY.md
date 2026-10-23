@@ -1,53 +1,43 @@
 # Security Policy
 
-## Supported Versions
+## 1. Supported Versions
 
-| Version | Supported | Security Maintenance Status |
-| :---: | :---: | :--- |
-| `0.4.x` | Yes | Active development and security patch branch |
-| `< 0.4.0` | No | Prototype previews (deprecated) |
+Security updates and vulnerability patches are actively maintained for the following releases:
 
----
-
-## Reporting a Vulnerability
-
-We treat all security vulnerabilities with utmost priority. If you discover a potential vulnerability in the **Thru Quant Core** contracts, math library, feeder, or API daemon, please follow our coordinated disclosure policy.
-
-### Reporting Channel
-- **Email:** `security@thru-quant.internal` (or file a private security advisory via GitHub Security Advisories).
-- **Encryption:** Use PGP encryption for sensitive reports when requested.
-
-### Information to Include
-1. Component name and file path (e.g. `src/market_oracle.c`, `src/thru_math.c`).
-2. Type of vulnerability (e.g. integer overflow, unauthorized state transition, logic flaw, denial of service).
-3. Step-by-step reproduction instructions or a minimal test vector / proof-of-concept.
-4. Estimated potential impact on funds, state consistency, or liveness.
-
-### Response Timelines
-- **Initial Acknowledgment:** Within 24 hours of receipt.
-- **Triage & Severity Assessment:** Within 48 hours.
-- **Remediation & Patch Release:** Within 72 hours for critical vulnerabilities.
+| Version | Supported | Consensus Tier | Environment |
+|---|:---:|---|---|
+| `v0.4.x` / `v0.5.x` | Yes | Tier T1 / Tier T2 | Thru Betanet |
+| `v0.3.x` | Security Fixes Only | Tier T0 (Single Publisher) | Alphanet Archive |
+| `< v0.3.0` | No | Legacy Prototype | Deprecated |
 
 ---
 
-## Security Invariants & Scope
+## 2. Reporting a Vulnerability
 
-### In-Scope Components
-- **C Core Contracts (`src/market_oracle.c`):**
-  - Authority signer verification (`ORACLE_ERR_UNAUTHORIZED = 0x2003`).
-  - Pre-validation and circuit breaker bounds ($\le 500$ bps).
-  - Monotonic timestamp regression protection (`0x200E`).
-- **Research Prototypes (`research/clob/`):**
-  - Evaluated under research scope: order placement, cancellation authority, and FIFO priority.
-  - Note: Non-custodial research prototype without escrow.
-- **Fixed-Point Math Library (`src/thru_math.c`, `include/thru_math.h`):**
-  - Q64.64 checked arithmetic (`q64_status_t`).
-  - Range reduction and polynomial bounds for $\exp$ and $\ln$.
-- **Off-Chain Feeder & API (`feeder/`, `api/`):**
-  - Write deadlines and denial-of-service resistance on streaming endpoints.
-  - Fail-closed RPC validation.
+If you discover a security vulnerability in Thru Quant Core, do not disclose it publicly or open an issue on GitHub. 
 
-### Out of Scope
-- Denial of Service on public third-party RPC endpoints or testnet validator consensus.
-- Social engineering attacks against operators.
-- Bugs in underlying hardware or toolchain compilers unless reproducible with explicit flags.
+Please report all security issues directly to the security response team:
+- **Email:** `security@thru.network`
+- **Response SLA:**
+  - Initial Acknowledgement: Within 24 hours.
+  - Triage & Severity Assessment: Within 72 hours.
+  - Remediation Patch & Verification: Within 14 days.
+
+---
+
+## 3. Scope of Verification
+
+The following components are strictly in scope for security evaluations:
+
+1. **On-Chain Contracts (`src/`):** Arithmetic safety, memory safety (ASan/UBSan), bounds verification, fail-closed clock assertions, and authority controls.
+2. **Ingestion & Quorum Feeder (`feeder/`):** Outlier rejection, price serialization, and publisher key integrity.
+3. **API Gateway & Indexer (`gateway/`, `indexer/`):** Deserialization attacks, SQL injection, denial-of-service resilience, and SSE client pooling.
+4. **TypeScript SDK (`sdk/`):** Zero-copy wire decoders, program pinning, and asymmetric safe valuation calculations.
+
+---
+
+## 4. Coordinated Disclosure Guidelines
+
+1. Security researchers agree to maintain confidentiality until a patch is released and audited on Betanet.
+2. The core engineering team agrees to provide public attribution and credit in release notes.
+3. Once resolved, a formal post-mortem with root-cause analysis will be published in `docs/drills/`.

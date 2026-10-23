@@ -40,7 +40,8 @@ test("Design Partner: Lending health factor evaluation", async () => {
   });
 
   await new Promise<void>((resolve) => server.listen(0, resolve));
-  const port = (server.address() as any).port;
+  const addr = server.address();
+  const port = typeof addr === "object" && addr ? addr.port : 0;
 
   const client = new OracleClient({ daemonUrl: `http://localhost:${port}` });
   const ethVal = await client.calculateSafeValuation("ETH/USD", "collateral", { k: 1.0 });
@@ -76,7 +77,8 @@ test("Design Partner: Perpetual DEX mark price clamping", async () => {
   });
 
   await new Promise<void>((resolve) => server.listen(0, resolve));
-  const port = (server.address() as any).port;
+  const addr = server.address();
+  const port = typeof addr === "object" && addr ? addr.port : 0;
 
   const client = new OracleClient({ daemonUrl: `http://localhost:${port}` });
   const quote = await client.getLatestPrice("BTC/USD");
