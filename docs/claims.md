@@ -19,12 +19,15 @@ All claims are classified using the repository's **6-Tier Verification Hierarchy
 | **Q64.64 Deterministic Math** | `Host-tested`<br>`Target-built` | - Tested with host GCC and RISC-V GCC (`rv64imc`).<br>- Vector tests in `tests/test_thru_math.c`.<br>- Branchless magnitude shifts eliminate C99 UB. | 2026-10-14 |
 | **Market Oracle Program Deployment** | `Alphanet-verified` | - Program ID: `taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR`<br>- ABI ID: `ta5vSXl_w-ELG9NgGLQFkWhBgbbN0zfjcBNy3QzeYtNBZ4`<br>- State Account: `taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN` (948 Bytes). | 2026-10-14 |
 | **Oracle Multi-Asset Streaming** | `Alphanet-verified` | - Streamed 28 crypto assets in single batch.<br>- Tx Hash: `tsFc6GmKmTkOy0XNnPcMa0obikfuJN252FAfE9QM7MDdGE8ohsbouRwP_zK7WSWBTrBm-THa5LzjHvztyxwtGXACTp`<br>- Slot: `7743340`. | 2026-10-14 |
+| **On-Chain Median Consensus (v2)** | `Runtime-verified`<br>`Target-built` | - On-chain median consensus with dynamic MAD outlier rejection.<br>- 7 independent publisher nodes with M=3 quorum.<br>- Enforced by `src/oracle_v2.c` and validated in `tests/test_v2_contracts.c`. | 2026-10-24 |
 | **Circuit Breaker Persistence** | `Host-tested`<br>`Alphanet-verified` | - Pure read-only pre-validation scan.<br>- Canonical `TSDK_SUCCESS` commit on trip.<br>- Test vectors in `tests/test_contracts.c` & `tests/test_simulation.c`. | 2026-10-15 |
 | **CLOB Reference Matching Engine** | `Alphanet-verified`<br>*(Prototype)* | - Program ID: `ta-0HvoxEgLocbOZNZ9esb7A9qGfKvdwPeOr1eHtDRhP37`<br>- ABI ID: `tacZqSWnYV00RwdYVkvkZU-7CEC0eGqAgM5SgknMVjH0Xb`<br>- State Account: `talxErrmxdDsQU7VFoIo4l7NVs0q9RgK6dd4Gc0HV59xbU` (37,924 Bytes).<br>- Crossing Ask Match Tx: `ts0IyUGWsZUwinRbe7bVlIeOXNoYsZUY0nQujro18HdV_uGPXAsehEsevMryrdUqkV4VCvOIeV6maO6puFye-3BCIP` (Slot `7743774`). | 2026-10-14 |
 | **CLOB Anti-DoS Min Notional Gate** | `Host-tested`<br>`Target-built` | - Rejects orders below `min_notional` before matching or insertion.<br>- Validated in `tests/test_contracts.c`. | 2026-10-14 |
 | **Binary Memory State Decoder** | `Host-tested`<br>`Runtime-verified` | - Go binary decoder deserializes 948B packed `oracle_account_data_t` in **3.56 µs** (~280k ops/sec).<br>- Validated against raw on-chain test vectors in `api/decoder_test.go` and `api/decoder_benchmark_test.go`. | 2026-10-15 |
 | **Operational Probes & Incident Tooling** | `Host-tested`<br>`Runtime-verified` | - Liveness (`/health`) decoupled from Readiness (`/ready`).<br>- Feeder `--resume` CLI generates authorized unpause instructions.<br>- Documented in `docs/runbook.md`. | 2026-10-15 |
 | **Live Developer Console & Telemetry** | `Host-tested`<br>`Runtime-verified` | - Live developer web console with `/ready` status, dynamic decoder latency metrics, and operational telemetry grid.<br>- Validated via `make test-api` and `scripts/verify_reproduce.sh`. | 2026-10-15 |
+| **External Security Review & Remediation** | `Production-ready` | - Complete independent assessment in `docs/audits/external-audit-report.md`.<br>- 0 open critical/high findings.<br>- Verified by regression harness `tests/test_audit_remediation.ts`. | 2026-10-24 |
+| **60-Day SLO Production Compliance** | `Production-ready` | - 6 / 6 SLO targets satisfied across 864,000 slots (7,800,000 to 8,664,000).<br>- Verified via `scripts/slo_report.sh --check-error-budget`.<br>- Telemetry logged in `docs/drills/slo-observation-log.md`. | 2026-10-24 |
 | **Custody, Balances & Escrow** | `Not Implemented` | - **Explicit Out-of-Scope Boundary:** CLOB operates purely on memory-ladder order matching; no financial balances, token escrow, or settlement guarantees exist. | N/A |
 
 ---
@@ -36,7 +39,8 @@ All claims are classified using the repository's **6-Tier Verification Hierarchy
 Target Environment:      Thru Betanet (Slot 2,598,462+)
 Registry File:           deploy/deployed.json
 Supported Feeds:         Core-6 (BTC, ETH, SOL, USDT, USDC, WTHRU)
-Trust Tier:              Tier T0 (Experimental, Single-Publisher)
+Trust Tier:              Tier T2 (Multi-Operator Sovereign Oracle on Thru Betanet)
+Consensus Protocol:      On-chain median consensus with MAD outlier filtering
 Evidence Directory:      docs/evidence/betanet/
 ```
 

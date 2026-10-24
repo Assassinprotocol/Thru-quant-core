@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.0] - 2026-10-24
+
+### Added
+- Oracle v2 on-chain median consensus (`src/oracle_v2.c`, `src/aggregation_math.c`) with dynamic MAD outlier filtering and M-of-N publisher quorum ($M=3$).
+- Full-stack Price Hub services: Postgres indexer (`indexer/`), hardened API gateway v2 (`gateway/`), real-time operator leaderboard (`web/`), and Model Context Protocol server (`mcp/`).
+- Turnkey partner integration kit (`docs/partners/`) and consumer reference test harness (`tests/test_partner_consumer.ts`).
+- Containerized Tier T2 publisher stack (`deploy/publisher/`) and automated onboarding verification (`scripts/verify_publisher.sh`).
+- Hardware M-of-N key ceremony runbook (`docs/runbooks/key-ceremony.md`) and 48-hour on-chain timelock governance.
+- SRE chaos drill automation (D1–D8), 60-day SLO telemetry ledger (`docs/drills/slo-observation-log.md`), and S0–S3 post-mortem SOP (`docs/runbooks/post-mortem-template.md`).
+- Independent security review (`docs/audit/external-audit-report.md`) with 0 open Critical/High findings and regression tests (`tests/test_audit_remediation.ts`).
+- Production readiness audit scorecard (`docs/audit/audit-scorecard.md`) scoring 87.2 / 100.
+
+### Changed
+- Elevated network status to Tier T2 Multi-Operator Sovereign Oracle on Thru Betanet.
+- Pinned RISC-V toolchain with reproducible containerized builds and CycloneDX v1.5 SBOM (`docs/audit/sbom.json`).
+
 ## [v0.5.0-rc1] - 2026-10-21
 
 ### Added

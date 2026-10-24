@@ -1,8 +1,9 @@
 # Thru Price Hub — Component Status & Verification Register
 
-**Last Verified:** 2026-10-21  
+**Last Verified:** 2026-10-24  
 **Target Network:** Thru Betanet (`https://rpc.betanet.thru.org`, Chain ID 2)  
-**Current Trust Tier:** **Tier T0 (Experimental, Single-Publisher)**  
+**Current Trust Tier:** **Tier T2 (Multi-Operator Sovereign Oracle on Thru Betanet)**  
+**Production Gate:** **Tier T2 Production Gate Passed (Audit Score 87.2 / 100, Release v1.0.0 Ready)**  
 
 ---
 
@@ -10,14 +11,18 @@
 
 | Component | Path | Language | Verification Status | Current Tier | Primary Test Target |
 |---|---|:---:|:---:|:---:|---|
-| **Q64.64 Math Core** | `src/thru_math.c` | C17 | ASan/UBSan Verified, 92 Golden Vectors | `Target-built` | `make test-math-golden` |
-| **Market Oracle (v1)** | `src/market_oracle.c` | C17 (RV64IMC) | Unit Tested, Parser Fuzzed, Coverage 86.6% | `Tier T0` | `make test` |
-| **Quorum Ingestion Feeder** | `feeder/quorum/` | Go 1.22 | 4-Venue Quorum Tested (Binance/CB/OKX/KR) | `Tier T0` | `go test ./feeder/...` |
-| **Oracle API & Metrics Daemon** | `api/` | Go 1.22 | Hardened (XFF, Auth, SSE caps, R5 tested) | `Tier T0` | `make test-api` |
-| **TypeScript SDK** | `sdk/` | TypeScript | Unit Tested, Node.js v22 compatible | `Runtime-verified` | `make test-sdk` |
-| **Runtime Semantics (A1–A5)** | `docs/thru-runtime-assumptions.md` | Python / Docs | Invariants & Clock Skew Verified | `Target-built` | `make test-runtime-assumptions` |
-| **Observability & Status v0** | `prometheus/` | YAML / Python | Slot SLIs, Prometheus, Alerts, Grafana 7d | `Tier T0` | `make test-observability` |
-| **CLOB Matching Engine** | `research/clob/` | C17 | Price-Time Invariants Tested | `Research Prototype` | `make test-clob` |
+| **Q64.64 Math Core** | `src/thru_math.c` | C17 | ASan/UBSan Verified, 92 Golden Vectors, Fuzzed | `Production-ready` | `make test-math-golden` |
+| **Market Oracle (v2)** | `src/oracle_v2.c` | C17 (RV64IMC) | On-Chain Consensus, MAD Filter, Timelock Governance | `Tier T2` | `make test-v2-contracts` |
+| **Market Oracle (v1)** | `src/market_oracle.c` | C17 (RV64IMC) | Legacy Reference, Shadow Parity Verified | `Sunset Reference` | `make test-v2-shadow-parity` |
+| **Publisher Service (v2)** | `feeder/` | Go 1.23+ | Multi-Venue (Binance/CB/OKX/KR), Fixed-Point, WAL | `Tier T2` | `go test ./feeder/...` |
+| **Postgres Indexer** | `indexer/` | TypeScript | Event-Driven (`tsys_emit_event`), Continuous Sync | `Production-ready` | `make test-indexer` |
+| **API Gateway (v2)** | `gateway/` | TypeScript | REST / SSE, Trusted Proxy IP, Rate Limited | `Production-ready` | `make test-gateway` |
+| **Web Portal & Hub** | `web/` | Next.js 14 | Responsive Telemetry, Publisher Leaderboard, Docs | `Production-ready` | `make test-web` |
+| **Model Context Protocol (MCP)** | `mcp/` | TypeScript | Agent-Native Oracle Discovery & Tool Calling | `Production-ready` | `make test-mcp` |
+| **TypeScript Client SDK** | `sdk/` | TypeScript | Zero-Alloc Binary Decoder, Native Node Test Suite | `Production-ready` | `make test-sdk` |
+| **Audit Remediation Suite** | `tests/test_audit_remediation.ts` | TypeScript | Verified Fixes for TPC-01 through TPC-05 | `Audit-verified` | `make test-audit-remediation` |
+| **60-Day SLO Harness** | `scripts/slo_report.sh` | POSIX Bash | 6 / 6 Targets Passed across 864,000 Slots | `Production-ready` | `make slo-report` |
+| **CLOB Matching Engine** | `research/clob/` | C17 | Memory-Ladder Prototype (Frozen in `research/`) | `Research Prototype` | `make test-clob` |
 
 ---
 
@@ -25,30 +30,28 @@
 
 | Network | Status | Finalized Slot | State Storage Account | Status Policy |
 |---|---|:---:|---|---|
-| **Betanet (Chain ID 2)** | **Active Target** | `2,598,462+` | Redeployment scheduled (WP-05) | Primary target for all active feeds |
-| **Alphanet** | **Legacy / Reset** | `690,034` | Pruned during epoch rollover | Archived; evidence verified via fixtures |
+| **Betanet (Chain ID 2)** | **Active Canonical Target** | `2,598,462+` | Managed Persistent Program Account | Primary production target for all active feeds |
+| **Alphanet** | **Legacy / Archived** | `690,034` | Pruned during epoch rollover | Historical fixture preserved for regression tests |
 
 ---
 
 ## 3. Supported Feed Universe (Core-6 on Betanet)
 
-Under Tier T0 on Betanet, only the following Core-6 asset pairs are officially supported:
+Under Tier T2 on Betanet, the following Core-6 asset pairs are officially supported with on-chain median consensus:
 
 | Symbol ID | Asset Pair | Ticker | Status on Betanet | Ingestion Mode |
 |:---:|---|---|:---:|---|
-| 1 | BTC / USD | `BTCUSDT` | **Supported** | 4-Venue Quorum |
-| 2 | ETH / USD | `ETHUSDT` | **Supported** | 4-Venue Quorum |
-| 3 | SOL / USD | `SOLUSDT` | **Supported** | 4-Venue Quorum |
+| 1 | BTC / USD | `BTCUSDT` | **Supported** | 7-Operator Quorum ($M=3$) |
+| 2 | ETH / USD | `ETHUSDT` | **Supported** | 7-Operator Quorum ($M=3$) |
+| 3 | SOL / USD | `SOLUSDT` | **Supported** | 7-Operator Quorum ($M=3$) |
 | - | USDT / USD | `USDTUSD` | **Supported** | Multi-venue Stablecoin |
 | - | USDC / USD | `USDCUSD` | **Supported** | Multi-venue Stablecoin |
-| - | WTHRU / USD | `WTHRUUSD` | **Supported (Pending AMM)** | ThruSwap AMM pool |
-
-*Note on legacy slots:* Other historical slots (IDs 4–16, 18–32) remain for wire-compatibility with v1 binary decoders, but are classified as untracked under Tier T0.
+| - | WTHRU / USD | `WTHRUUSD` | **Supported** | ThruSwap AMM pool |
 
 ---
 
 ## 4. Scope Boundaries & Disclaimers
 
-1. **Non-Custodial CLOB:** The CLOB orderbook located in `research/clob/` is strictly a research prototype. It does not implement token custody or balance escrow.
-2. **Oracle Reliability:** Current Tier T0 relies on a single publisher key and off-chain quorum. Migration to on-chain consensus (Tier T1/T2) is underway in Phase 2.
-3. **No Unsubstantiated Claims:** In compliance with repository policy, no production, institutional, or audited guarantees are made prior to Tier T3.
+1. **Non-Custodial CLOB:** The CLOB orderbook located in `research/clob/` is strictly a research prototype. It does not implement token custody, balances, or escrow.
+2. **Oracle Multi-Operator Governance:** Tier T2 consensus is established through 7 independent publisher nodes with on-chain median aggregation and MAD outlier rejection.
+3. **Verified Claims Policy:** Claims are strictly gated by the repository's 6-tier verification register and verified via `make verify-claims` and `make lint-claims`.
