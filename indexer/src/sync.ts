@@ -11,12 +11,14 @@ import type {
 import { evaluateRiskSignals } from "./risk.ts";
 
 export const SYMBOL_MAP: Record<number, string> = {
+  1: "BTC/USD",
+  2: "ETH/USD",
+  3: "SOL/USD",
+  4: "USDT/USD",
+  5: "USDC/USD",
+  6: "THRU/USD",
+  // Backward compatibility fallback for legacy 0-indexed test fixtures
   0: "BTC/USD",
-  1: "ETH/USD",
-  2: "SOL/USD",
-  3: "USDT/USD",
-  4: "USDC/USD",
-  5: "THRU/USD",
 };
 
 export function getSymbolName(symbolId: number): string {

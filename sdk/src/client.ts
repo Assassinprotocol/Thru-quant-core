@@ -122,7 +122,7 @@ export class OracleClient {
   }
 
   /**
-   * Fetches and deserializes state directly from Thru Alphanet JSON-RPC.
+   * Fetches and deserializes state directly from Thru Betanet JSON-RPC.
    */
   async fetchFromRpc(): Promise<OracleState> {
     const controller = new AbortController();

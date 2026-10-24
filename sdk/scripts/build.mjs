@@ -15,7 +15,7 @@ fs.copyFileSync(path.join(DIST_DIR, "index.js"), path.join(DIST_DIR, "index.mjs"
 // Create Standalone Single-File Bundle
 console.log("[BUILD] Assembling zero-dependency standalone bundle (thru-oracle.js)...");
 const bundleHeader = `/**
- * @thru-quant/core-sdk v0.4.0 (Standalone Zero-Dependency Bundle)
+ * @thru-quant/core-sdk v1.0.0 (Standalone Zero-Dependency Bundle)
  * Thru Quant Data & Risk Engine
  * Built for Thru Network (Node.js, Bun, Deno, Modern Browser)
  */

@@ -40,7 +40,7 @@ func main() {
 	port := flag.String("port", "8080", "HTTP server port")
 	oracleAccount := flag.String("oracle-account", "taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN", "Target on-chain Oracle storage account")
 	programAddr := flag.String("program", "taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR", "Target on-chain Oracle program address")
-	network := flag.String("network", "Alphanet", "Thru Network cluster name")
+	network := flag.String("network", "Betanet", "Thru Network cluster name")
 	dataDir := flag.String("data-dir", "data", "Path to market data fallback directory")
 	staticDir := flag.String("static-dir", "visualizer", "Path to visualizer web directory")
 	pollInterval := flag.Duration("poll-interval", 5*time.Second, "On-chain state refresh interval")

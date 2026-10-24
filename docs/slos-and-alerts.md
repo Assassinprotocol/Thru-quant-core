@@ -30,7 +30,7 @@ SLIs are measured against on-chain block slots instead of host wall-clock time.
   - Notification: Automated pager + on-call bridge.
   - Escalation SLA: Immediate ack within 5 minutes.
   - Action: Execute triage per `docs/runbook.md` (Decision Tree: `RESUME` vs `REBASE`).
-  - Post-mortem required within 72 hours via `docs/incidents/incident-template.md`.
+  - Post-mortem required within 72 hours via `docs/runbooks/post-mortem-template.md`.
 
 ### Severity P1: High Severity
 - **Criteria:**
@@ -77,6 +77,6 @@ Prometheus alert rules defined in [`prometheus/alerts.yml`](../prometheus/alerts
 
 ## 4. Runbook & Incident References
 - Operator recovery decision tree: [`docs/runbook.md`](runbook.md)
-- Incident post-mortem template: [`docs/incidents/incident-template.md`](incidents/incident-template.md)
+- Incident post-mortem template: [`docs/runbooks/post-mortem-template.md`](runbooks/post-mortem-template.md)
 - Reverse proxy and security deployment: [`docs/reverse-proxy.md`](reverse-proxy.md)
 - Threat model and invariant mappings: [`docs/threat-model.md`](threat-model.md)

@@ -14,7 +14,7 @@ const command = args[0] || "help";
 
 function printHelp() {
   console.log(`
-\x1b[1m\x1b[36mThru Quant Core — Operator CLI Diagnostic Tool (v0.4.0)\x1b[0m
+\x1b[1m\x1b[36mThru Quant Core — Operator CLI Diagnostic Tool (v1.0.0)\x1b[0m
 Usage:
   thru-oracle status   [--daemon <url>] [--rpc <url>]   Show on-chain oracle status table
   thru-oracle quote    <symbol> [--daemon <url>]        Inspect detailed quote for a specific ticker
@@ -22,8 +22,8 @@ Usage:
   thru-oracle help                                      Display this help manual
 
 Options:
-  --daemon <url>     HTTP daemon address (default: http://localhost:8082)
-  --rpc <url>        Thru JSON-RPC node address (default: https://alphanet.thru.network/rpc)
+  --daemon <url>     HTTP daemon address (default: http://localhost:8080)
+  --rpc <url>        Thru JSON-RPC node address (default: https://rpc.betanet.thru.org)
   --account <addr>   Oracle storage account address
 `);
 }
@@ -37,8 +37,8 @@ function getOption(flag, defaultValue) {
 }
 
 async function handleStatus() {
-  const daemonUrl = getOption("--daemon", "http://localhost:8082");
-  const rpcUrl = getOption("--rpc", "https://alphanet.thru.network/rpc");
+  const daemonUrl = getOption("--daemon", "http://localhost:8080");
+  const rpcUrl = getOption("--rpc", "https://rpc.betanet.thru.org");
   const accountAddress = getOption(
     "--account",
     "taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN"
@@ -88,8 +88,8 @@ async function handleQuote(symbol) {
     process.exit(1);
   }
 
-  const daemonUrl = getOption("--daemon", "http://localhost:8082");
-  const rpcUrl = getOption("--rpc", "https://alphanet.thru.network/rpc");
+  const daemonUrl = getOption("--daemon", "http://localhost:8080");
+  const rpcUrl = getOption("--rpc", "https://rpc.betanet.thru.org");
   const client = new OracleClient({ daemonUrl, rpcUrl });
 
   try {

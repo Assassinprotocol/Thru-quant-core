@@ -1,6 +1,6 @@
 {
   "name": "@thru-quant/core-sdk",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Deterministic market-data decoder, Q64.64 math, and risk engine client for Thru Network",
   "main": "./dist/index.js",

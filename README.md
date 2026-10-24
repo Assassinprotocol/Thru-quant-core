@@ -3,60 +3,94 @@
 [![CI](https://github.com/Assassinprotocol/Thru-quant-core/actions/workflows/ci.yml/badge.svg)](https://github.com/Assassinprotocol/Thru-quant-core/actions/workflows/ci.yml)
 ![Target ISA](https://img.shields.io/badge/ISA-RISC--V%20RV64IMC-blue?style=flat-square)
 ![Network](https://img.shields.io/badge/Network-Thru%20Betanet-black?style=flat-square)
-![Trust Tier](https://img.shields.io/badge/Tier-T0%20(Single--Publisher)-orange?style=flat-square)
+![Trust Tier](https://img.shields.io/badge/Tier-T2%20(Multi--Operator)-brightgreen?style=flat-square)
+![Release](https://img.shields.io/badge/Release-v1.0.0-blue?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
-Deterministic Q64.64 fixed-point market data oracle and risk primitives in C for Thru Network (RISC-V RV64IMC), with multi-venue Go feeder and TypeScript SDK.
+Deterministic Q64.64 fixed-point market data oracle and risk primitives for Thru Network (RISC-V RV64IMC), featuring on-chain multi-operator median consensus, outlier-robust filtering, high-throughput REST/SSE gateway, and zero-dependency TypeScript SDK.
 
 ---
 
-## 1. Overview & Trust Tier
+## 1. System Architecture
 
-`thru-price-hub` delivers verified on-chain pricing and risk metrics for DeFi builders on Thru Network:
+```mermaid
+flowchart TD
+    subgraph Venues ["Price Venues"]
+        V["Exchanges: Binance, Coinbase, OKX, Kraken"]
+    end
 
-- **Tier Status:** `Tier T0 (Experimental, Single-Publisher)`. Current deployment targets **Thru Betanet** (`https://rpc.betanet.thru.org`, Chain ID 2).
-- **Core Primitives:**
-  1. **Q64.64 Math Core:** 128-bit signed fixed-point arithmetic (`src/thru_math.c`) running on 64-bit ALU registers with checked bounds and Newton-Raphson square roots.
-  2. **Market Oracle Contract:** Packed 948-byte storage account (`src/market_oracle.c`) tracking real-time asset quotes, authority checks, and block-time freshness.
-  3. **Multi-Venue Ingestion:** Go feeder (`feeder/quorum/`) aggregating quotes from Binance, Coinbase, OKX, and Kraken with outlier rejection.
-  4. **Integration Layer:** Zero-dependency TypeScript SDK (`sdk/`) and REST/SSE API daemon (`api/`).
+    subgraph Publishers ["Multi-Operator Network"]
+        P["7 Independent Signer Nodes (M=3 Quorum)"]
+    end
 
-### Explicit Scope Boundaries
-- **Asset Universe:** Focused strictly on **Core-6** (`BTC/USD`, `ETH/USD`, `SOL/USD`, `USDT/USD`, `USDC/USD`, `WTHRU/USD`). See [docs/facts/asset-demand.md](docs/facts/asset-demand.md).
-- **CLOB Matching Engine:** Quarantined as a research prototype under [research/clob/](research/clob/). It models price-time priority matching in memory with **zero token custody or balance escrow**.
-- **Historical Alphanet Evidence:** Slot 7,743,340 on-chain evidence is archived as frozen SHA-256 test fixtures following the Alphanet chain reset. See [docs/facts/thru-facts.md](docs/facts/thru-facts.md).
+    subgraph Core ["Thru L1 Runtime (RISC-V RV64IMC)"]
+        O["Oracle v2 Kernel (C17)<br/>• Q64.64 Math & MAD Consensus<br/>• Dynamic Breakers & Timelock"]
+        E["On-Chain Event Stream"]
+    end
 
----
+    subgraph Hub ["Price Hub Services"]
+        IDX["Postgres Indexer"]
+        GW["API Gateway v2 (REST & SSE)"]
+    end
 
-## 2. 10-Minute Betanet Quickstart
+    subgraph Apps ["Ecosystem Consumers"]
+        WEB["Web Analytics Hub (Next.js 15)"]
+        SDK["DeFi Protocols (TypeScript SDK)"]
+        AI["Autonomous Agents (MCP Server)"]
+    end
 
-### Read On-Chain Oracle State (TypeScript)
-
-```typescript
-import { OracleClient } from "@thru-quant/core-sdk";
-
-const client = new OracleClient({
-  rpcUrl: "https://rpc.betanet.thru.org",
-  programId: "taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR",
-  storageAccount: "taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN",
-});
-
-const state = await client.getLatestState();
-const btc = state.bySymbol["BTCUSDT"];
-console.log(`BTC: $${btc.priceDecimal} | Age: ${state.ageSeconds}s | Breaker: ${state.circuitBreakerActive}`);
+    V --> P
+    P -->|"Signed Submissions"| O
+    O --> E
+    E --> IDX
+    E --> GW
+    IDX --> WEB
+    GW --> SDK
+    GW --> AI
 ```
 
-### Local Build & Verification
+| Layer | Component | Language / Runtime | Primary Scope |
+|---|---|:---:|---|
+| **Contract Core** | `src/thru_math.c`, `src/v2/` | C17 (RV64IMC) | Checked fixed-point arithmetic, median consensus, dynamic breakers |
+| **Consumer Headers** | `include/thru_oracle_consumer.h` | C17 / Rust FFI | Zero-overhead safety kit for downstream DeFi protocols |
+| **Publisher Engine** | `feeder/`, `cmd/api/` | Go 1.23+ | Multi-venue WebSocket ingestion, WAL replay, quorum dispatch |
+| **State Indexer** | `indexer/` | TypeScript / Node | Event ingestion, continuous checkpoint recovery, rolling volatility |
+| **API Gateway** | `gateway/` | Fastify / TypeScript | High-throughput REST & SSE endpoints with Prometheus telemetry |
+| **Client SDK** | `sdk/` | TypeScript | Dual v1/v2 zero-allocation binary decoders (`@thru-quant/core-sdk`) |
+| **Operator Portal** | `web/` | Next.js 15 | Real-time analytics, operator leaderboard, provenance verification |
+| **Agent Interface** | `mcp/`, `llms.txt` | TypeScript / JSON-RPC | Model Context Protocol server for autonomous trading agents |
+
+---
+
+## 2. Quickstart
+
+### Consuming Feeds via TypeScript SDK
+
+```typescript
+import { OracleV2Client } from "@thru-quant/core-sdk";
+
+const client = new OracleV2Client({
+  gatewayUrl: "http://localhost:8080",
+});
+
+// Fetch canonical Core-6 price with asymmetric confidence bounds
+const btc = await client.getLatestPrice("BTC/USD");
+console.log(`BTC: $${btc.price.toFixed(2)} (±${btc.confidenceBps} bps)`);
+
+// Subscribe to real-time server-sent events (SSE)
+const unsubscribe = client.watchFeed("BTC/USD", (update) => {
+  console.log(`Slot ${update.publishSlot}: $${update.price}`);
+});
+```
+
+### Querying Feeds via REST / SSE
 
 ```bash
-# 1. Run all unit tests with ASan & UBSan
-make test
+# Query active feed for BTC/USD
+curl -s http://localhost:8080/v2/feeds/BTC | jq .
 
-# 2. Run golden math vector tests & coverage gate (>= 85%)
-make test-math-golden coverage
-
-# 3. Compile RISC-V RV64IMC binary (< 32 KB target)
-make build-rv64
+# Inspect Prometheus operator and price metrics
+curl -s http://localhost:8080/metrics | grep thru_oracle
 ```
 
 ---
@@ -67,18 +101,46 @@ Claims in this repository adhere strictly to the **Trust Ladder**:
 
 | Tier | Designation | Consensus Model | Current Status |
 |:---:|---|---|:---:|
-| **T0** | Single-Operator | 1 publisher key, off-chain multi-venue median | **Active (Betanet)** |
-| **T1** | Multi-Key | $\ge 3$ independent keys/hosts, on-chain median | In Development (v2) |
-| **T2** | Multi-Operator | $\ge 3$ external independent publishers | Planned (v2) |
-| **T3** | Production / Accountable | Slashing / bonding, third-party audit, 60-day SLO | Planned |
+| **T0** | Single-Operator | 1 publisher key, off-chain multi-venue median | Verified (Betanet) |
+| **T1** | Multi-Key | $\ge 3$ independent keys/hosts, on-chain median | Verified (v2 Sandbox) |
+| **T2** | Multi-Operator | 7 external independent publishers ($M=3$ quorum) | **Active (v1.0.0, Score 87.2/100)** |
+| **T3** | Accountable Production | Slashing / bonding, formal verification, 60-day SLO | Post-Mainnet Roadmap |
 
+- Audit scorecard & remediation: [docs/audit/audit-scorecard.md](docs/audit/audit-scorecard.md)
+- Invariants & threat model: [docs/invariants-v2.md](docs/invariants-v2.md)
 - Formal evidence registry: [docs/claims.md](docs/claims.md)
-- Network environment facts: [docs/facts/thru-facts.md](docs/facts/thru-facts.md)
-- Operational runbook: [docs/runbook.md](docs/runbook.md)
-- Component status: [STATUS.md](STATUS.md)
+- Live component status: [STATUS.md](STATUS.md)
 
 ---
 
-## 4. License
+## 4. Local Build & Verification
+
+```bash
+# 1. Run core unit tests with ASan & UBSan
+make test
+
+# 2. Run golden math vectors and invariant suites
+make test-math-golden test-v2-contracts
+
+# 3. Run Gateway, Indexer, and SDK regression suites
+make test-indexer test-gateway test-sdk
+
+# 4. Verify on-chain claims and documentation integrity
+make verify-claims lint-claims check-links
+
+# 5. Compile RISC-V RV64IMC contract target (< 32 KB)
+make build-rv64
+```
+
+---
+
+## 5. Scope Boundaries
+
+- **Asset Universe:** Focused strictly on **Core-6** (`BTC/USD`, `ETH/USD`, `SOL/USD`, `USDT/USD`, `USDC/USD`, `WTHRU/USD`). Expansion follows formal protocol onboarding.
+- **CLOB Matching Engine:** Quarantined as a research prototype under `research/clob/`. It models price-time priority matching with zero token custody or escrow.
+
+---
+
+## 6. License
 
 Licensed under the MIT License. See [LICENSE](LICENSE) and [docs/facts/licensing.md](docs/facts/licensing.md).

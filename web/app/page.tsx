@@ -195,7 +195,7 @@ export default function Home() {
       <footer className="border-t border-[#1e293b] bg-[#0c101d] px-6 py-4 mt-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 font-mono text-[11px] text-zinc-500">
           <div>
-            <span>Thru Quant Core Hub</span> · <span>Sovereign Node v0.3.0</span> · <span>Zero External Telemetry</span>
+            <span>Thru Quant Core Hub</span> · <span>Sovereign Node v1.0.0</span> · <span>Zero External Telemetry</span>
           </div>
           <div>
             <span>Multi-Publisher Consensus Protocol (MAD Filter)</span>

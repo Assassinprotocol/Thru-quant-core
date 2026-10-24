@@ -17,7 +17,7 @@ describe("Gateway v2 API", () => {
     const feedBTC: FeedAccountV2 = {
       magic: 0x54464545,
       version: 2,
-      symbolId: 0,
+      symbolId: 1,
       status: 1,
       priceRaw: 8400000000000n,
       price: 84000.0,
@@ -83,6 +83,10 @@ describe("Gateway v2 API", () => {
     assert.equal(res3.statusCode, 200);
     assert.equal(res3.json().data.symbol, "BTC/USD");
 
+    const resCanonical = await app.inject({ method: "GET", url: "/v2/feeds/1" });
+    assert.equal(resCanonical.statusCode, 200);
+    assert.equal(resCanonical.json().data.symbol, "BTC/USD");
+
     const resSlash = await app.inject({ method: "GET", url: "/v2/feeds/BTC/USD" });
     assert.equal(resSlash.statusCode, 200);
     assert.equal(resSlash.json().data.symbol, "BTC/USD");
@@ -102,7 +106,7 @@ describe("Gateway v2 API", () => {
     const feedStale: FeedAccountV2 = {
       magic: 0x54464545,
       version: 2,
-      symbolId: 1,
+      symbolId: 2,
       status: 1,
       priceRaw: 250000000000n,
       price: 2500.0,

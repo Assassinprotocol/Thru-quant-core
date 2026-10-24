@@ -1,6 +1,6 @@
 {
   "name": "@thru-quant/gateway",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "High-throughput REST and SSE API Gateway v2 for Thru Quant Core",
   "main": "./dist/index.js",

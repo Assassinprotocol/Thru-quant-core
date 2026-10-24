@@ -102,7 +102,7 @@ describe("Indexer Sync Engine & State Storage", () => {
 
     const event: AggregateUpdatedEvent = {
       eventType: 1,
-      symbolId: 2,
+      symbolId: 3,
       flags: 2,
       contributorMask: 0x07,
       priceRaw: 10550000000n,
@@ -115,7 +115,7 @@ describe("Indexer Sync Engine & State Storage", () => {
     const inserted = await engine.processAggregateEvent(event, "tx-ev-001");
     assert.equal(inserted, true);
 
-    const snapshot = await db.getSnapshot(2);
+    const snapshot = await db.getSnapshot(3);
     assert.ok(snapshot !== null);
     assert.equal(snapshot?.symbol, "SOL/USD");
     assert.equal(snapshot?.price, 105.5);

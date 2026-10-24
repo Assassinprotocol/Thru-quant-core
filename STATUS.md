@@ -12,7 +12,7 @@
 | Component | Path | Language | Verification Status | Current Tier | Primary Test Target |
 |---|---|:---:|:---:|:---:|---|
 | **Q64.64 Math Core** | `src/thru_math.c` | C17 | ASan/UBSan Verified, 92 Golden Vectors, Fuzzed | `Production-ready` | `make test-math-golden` |
-| **Market Oracle (v2)** | `src/oracle_v2.c` | C17 (RV64IMC) | On-Chain Consensus, MAD Filter, Timelock Governance | `Tier T2` | `make test-v2-contracts` |
+| **Market Oracle (v2)** | `src/v2/oracle_v2.c` | C17 (RV64IMC) | On-Chain Consensus, MAD Filter, Timelock Governance | `Tier T2` | `make test-v2-contracts` |
 | **Market Oracle (v1)** | `src/market_oracle.c` | C17 (RV64IMC) | Legacy Reference, Shadow Parity Verified | `Sunset Reference` | `make test-v2-shadow-parity` |
 | **Publisher Service (v2)** | `feeder/` | Go 1.23+ | Multi-Venue (Binance/CB/OKX/KR), Fixed-Point, WAL | `Tier T2` | `go test ./feeder/...` |
 | **Postgres Indexer** | `indexer/` | TypeScript | Event-Driven (`tsys_emit_event`), Continuous Sync | `Production-ready` | `make test-indexer` |
@@ -44,9 +44,9 @@ Under Tier T2 on Betanet, the following Core-6 asset pairs are officially suppor
 | 1 | BTC / USD | `BTCUSDT` | **Supported** | 7-Operator Quorum ($M=3$) |
 | 2 | ETH / USD | `ETHUSDT` | **Supported** | 7-Operator Quorum ($M=3$) |
 | 3 | SOL / USD | `SOLUSDT` | **Supported** | 7-Operator Quorum ($M=3$) |
-| - | USDT / USD | `USDTUSD` | **Supported** | Multi-venue Stablecoin |
-| - | USDC / USD | `USDCUSD` | **Supported** | Multi-venue Stablecoin |
-| - | WTHRU / USD | `WTHRUUSD` | **Supported** | ThruSwap AMM pool |
+| 4 | USDT / USD | `USDTUSD` | **Supported** | Multi-venue Stablecoin |
+| 5 | USDC / USD | `USDCUSD` | **Supported** | Multi-venue Stablecoin |
+| 6 | WTHRU / USD | `WTHRUUSD` | **Supported** | ThruSwap AMM pool |
 
 ---
 

@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v1.0.0] - 2026-10-24
 
 ### Added
-- Oracle v2 on-chain median consensus (`src/oracle_v2.c`, `src/aggregation_math.c`) with dynamic MAD outlier filtering and M-of-N publisher quorum ($M=3$).
+- Oracle v2 on-chain median consensus (`src/v2/oracle_v2.c`, `src/v2/aggregation_math.c`) with dynamic MAD outlier filtering and M-of-N publisher quorum ($M=3$).
 - Full-stack Price Hub services: Postgres indexer (`indexer/`), hardened API gateway v2 (`gateway/`), real-time operator leaderboard (`web/`), and Model Context Protocol server (`mcp/`).
 - Turnkey partner integration kit (`docs/partners/`) and consumer reference test harness (`tests/test_partner_consumer.ts`).
 - Containerized Tier T2 publisher stack (`deploy/publisher/`) and automated onboarding verification (`scripts/verify_publisher.sh`).

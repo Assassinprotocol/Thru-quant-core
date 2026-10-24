@@ -9,7 +9,7 @@ mkdir -p "docs/audit"
 
 echo "=== Generating Thru Quant Core Software Bill of Materials (SBOM) ==="
 
-GIT_COMMIT="v0.3.0-betanet"
+GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo 'v1.0.0')"
 GIT_BRANCH="main"
 BUILD_TIMESTAMP="2026-10-24T00:00:00Z"
 
@@ -25,7 +25,7 @@ cat << EOF > "$OUTPUT_FILE"
     "component": {
       "type": "application",
       "name": "thru_quant_core",
-      "version": "0.3.0",
+      "version": "1.0.0",
       "description": "Deterministic sovereign quantitative oracle and risk engine on Thru Network",
       "properties": [
         { "name": "git:commit", "value": "$GIT_COMMIT" },

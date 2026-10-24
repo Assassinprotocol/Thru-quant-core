@@ -1,4 +1,4 @@
-# Thru Quant Core — Operator Runbook & Incident Response (v0.3.0)
+# Thru Quant Core — Operator Runbook & Incident Response (v1.0.0)
 
 This document specifies the standard operating procedures (SOPs) for maintaining, monitoring, and operating the **Thru Quant Data & Risk Engine** across live Thru networks.
 
@@ -16,7 +16,7 @@ The API daemon decodes on-chain binary account state (`oracle_account_data_t`, 9
   --static-dir ./visualizer \
   --program taWLmuEWcY7nikkn1JB1Whl5nBG1YqWj0oKJMVL8bPbdfR \
   --account taQbv-8fTNz3pEM9T5y0Ik61jtDV7BWMdmJFjh0c3FvwPN \
-  --network Alphanet
+  --network Betanet
 ```
 
 ### 1.2 Running the Market Data Feeder

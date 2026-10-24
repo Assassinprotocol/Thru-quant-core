@@ -6,9 +6,9 @@ Security updates and vulnerability patches are actively maintained for the follo
 
 | Version | Supported | Consensus Tier | Environment |
 |---|:---:|---|---|
-| `v0.4.x` / `v0.5.x` | Yes | Tier T1 / Tier T2 | Thru Betanet |
-| `v0.3.x` | Security Fixes Only | Tier T0 (Single Publisher) | Alphanet Archive |
-| `< v0.3.0` | No | Legacy Prototype | Deprecated |
+| `v1.0.x` | **Active / Production** | Tier T2 (Multi-Operator Sovereign Oracle) | Thru Betanet |
+| `v0.5.x` | Security Fixes Only | Tier T0 (Single Publisher) | Thru Betanet |
+| `< v0.5.0` | No | Legacy Prototype / Alphanet Archive | Deprecated |
 
 ---
 

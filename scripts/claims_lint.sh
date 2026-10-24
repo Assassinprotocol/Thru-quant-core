@@ -24,12 +24,12 @@ fi
 # Check for false "audited" claim (allowing "unaudited" or "no audit")
 AUDIT_CLAIM=$(grep -rniE '\b(is audited|fully audited|audited by)\b' "${ROOT_DIR}/docs" "${README_FILE}" 2>/dev/null || true)
 if [ -n "${AUDIT_CLAIM}" ]; then
-  if [ ! -d "${ROOT_DIR}/docs/audits" ] || [ -z "$(ls -A "${ROOT_DIR}/docs/audits" 2>/dev/null)" ]; then
-    echo "Error: 'Audited' claimed without supporting report in docs/audits/:" >&2
+  if [ ! -d "${ROOT_DIR}/docs/audit" ] || [ -z "$(ls -A "${ROOT_DIR}/docs/audit" 2>/dev/null)" ]; then
+    echo "Error: 'Audited' claimed without supporting report in docs/audit/:" >&2
     echo "${AUDIT_CLAIM}" >&2
     ERRORS=$((ERRORS + 1))
   else
-    echo "  [OK] Audit claim corroborated by docs/audits/ reports."
+    echo "  [OK] Audit claim corroborated by docs/audit/ reports."
   fi
 else
   echo "  [OK] No false or unverified third-party audit claims."

@@ -17,7 +17,7 @@ describe("Gateway v2 High-Throughput Load Benchmark", () => {
     const feed: FeedAccountV2 = {
       magic: 0x54464545,
       version: 2,
-      symbolId: 0,
+      symbolId: 1,
       status: 1,
       priceRaw: 8400000000000n,
       price: 84000.0,

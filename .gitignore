@@ -8,14 +8,15 @@ build/
 *.d
 
 # Test & feeder binaries
-tests/test_math
-tests/test_simulation
-tests/test_contracts
-tests/test_bench
-tests/test_oracle_hardening
-tests/test_math_golden
-tests/test_math_checked
-tests/fuzz_math_diff
+tests/test_*
+tests/fuzz_*
+tests/bench_*
+tests/cov_*
+tests/*.gcda
+tests/*.gcno
+*.gcda
+*.gcno
+*.gcov
 feeder/feeder
 
 # System & editor files

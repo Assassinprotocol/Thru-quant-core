@@ -20,7 +20,7 @@ export function Header({ status, onRefresh, onGatewayUrlChange, onSimulateBreake
           <div>
             <div className="flex items-center gap-2">
               <span className="font-semibold tracking-tight text-white text-base">THRU QUANT CORE</span>
-              <span className="rounded bg-[#1e293b] px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">v0.3.0</span>
+              <span className="rounded bg-[#1e293b] px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">v1.0.0</span>
             </div>
             <p className="text-[11px] text-zinc-400 font-mono">Sovereign Oracle Telemetry & Risk Terminal</p>
           </div>
