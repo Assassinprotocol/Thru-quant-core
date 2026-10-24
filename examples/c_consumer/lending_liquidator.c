@@ -1,0 +1,72 @@
+#include "lending_liquidator.h"
+
+liquidation_eval_result_t evaluate_loan_liquidation(
+    const loan_position_t *position,
+    const thru_feed_account_view_t *collateral_feed,
+    const thru_feed_account_view_t *debt_feed,
+    uint64_t current_slot,
+    uint64_t max_staleness_slots,
+    uint64_t max_confidence_bps,
+    q64_t *out_health_factor,
+    thru_consumer_status_t *out_oracle_status
+) {
+    if (!position || !collateral_feed || !debt_feed || !out_health_factor) {
+        if (out_oracle_status) *out_oracle_status = THRU_CONSUMER_ERR_PRICE_ZERO;
+        return LIQUIDATION_EVAL_ERR_ORACLE;
+    }
+
+    uint64_t col_price = 0;
+    thru_consumer_status_t col_status = thru_oracle_read_price(
+        collateral_feed,
+        current_slot,
+        max_staleness_slots,
+        max_confidence_bps,
+        &col_price
+    );
+    if (col_status != THRU_CONSUMER_OK) {
+        if (out_oracle_status) *out_oracle_status = col_status;
+        return LIQUIDATION_EVAL_ERR_ORACLE;
+    }
+
+    uint64_t debt_price = 0;
+    thru_consumer_status_t debt_status = thru_oracle_read_price(
+        debt_feed,
+        current_slot,
+        max_staleness_slots,
+        max_confidence_bps,
+        &debt_price
+    );
+    if (debt_status != THRU_CONSUMER_OK) {
+        if (out_oracle_status) *out_oracle_status = debt_status;
+        return LIQUIDATION_EVAL_ERR_ORACLE;
+    }
+
+    if (position->debt_amount == 0 || debt_price == 0) {
+        *out_health_factor = Q64_MAX;
+        if (out_oracle_status) *out_oracle_status = THRU_CONSUMER_OK;
+        return LIQUIDATION_EVAL_HEALTHY;
+    }
+
+    q64_t col_amt_q64 = q64_from_int((int64_t)position->collateral_amount);
+    q64_t col_prc_q64 = q64_from_int((int64_t)col_price);
+    q64_t col_val = q64_mul(col_amt_q64, col_prc_q64);
+
+    q64_t ltv_q64 = q64_from_ratio((int64_t)position->liquidation_threshold_bps, 10000);
+    q64_t discounted_col = q64_mul(col_val, ltv_q64);
+
+    q64_t debt_amt_q64 = q64_from_int((int64_t)position->debt_amount);
+    q64_t debt_prc_q64 = q64_from_int((int64_t)debt_price);
+    q64_t debt_val = q64_mul(debt_amt_q64, debt_prc_q64);
+
+    if (debt_val == 0) {
+        *out_health_factor = Q64_MAX;
+        if (out_oracle_status) *out_oracle_status = THRU_CONSUMER_OK;
+        return LIQUIDATION_EVAL_HEALTHY;
+    }
+
+    q64_t hf = q64_div(discounted_col, debt_val);
+    *out_health_factor = hf;
+    if (out_oracle_status) *out_oracle_status = THRU_CONSUMER_OK;
+
+    return (hf < Q64_ONE) ? LIQUIDATION_EVAL_TRIGGERED : LIQUIDATION_EVAL_HEALTHY;
+}

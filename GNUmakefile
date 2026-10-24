@@ -37,9 +37,15 @@ fuzz-contracts:
 	./tests/fuzz_contracts 100000
 	rm -f tests/fuzz_contracts
 
+test-c-consumer:
+	gcc -O2 -fsanitize=address,undefined -Iinclude -Iexamples/c_consumer tests/test_c_consumer.c examples/c_consumer/lending_liquidator.c src/thru_math.c -o tests/test_c_consumer
+	./tests/test_c_consumer
+	rm -f tests/test_c_consumer
+
 lint-c:
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc src/market_oracle.c src/thru_math.c
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc -Isrc/v2 src/v2/aggregation_math.c src/v2/oracle_v2.c
+	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Iexamples/c_consumer examples/c_consumer/lending_liquidator.c src/thru_math.c
 
 lint-clob:
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Iresearch/clob research/clob/clob_engine.c src/thru_math.c
@@ -187,11 +193,11 @@ generate-sbom:
 test-audit-remediation:
 	node --test tests/test_audit_remediation.ts
 
-all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math test-v2-golden test-v2-contracts test-v2-shadow-parity fuzz-math fuzz-contracts fuzz-v2-contracts lint-c lint-claims verify-claims check-links drills slo-check slo-report generate-sbom test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk test-indexer test-gateway test-web test-mcp test-time-to-first-price test-partner test-audit-remediation run-example
+all-tests: test test-simulation test-hardening test-math-golden test-math-checked test-v2-math test-v2-golden test-v2-contracts test-c-consumer test-v2-shadow-parity fuzz-math fuzz-contracts fuzz-v2-contracts lint-c lint-claims verify-claims check-links drills slo-check slo-report generate-sbom test-deploy test-runtime-assumptions test-observability coverage test-api test-sdk test-indexer test-gateway test-web test-mcp test-time-to-first-price test-partner test-audit-remediation run-example
 
 coverage:
 	bash scripts/coverage_gate.sh
 
 clean-tests:
-	rm -f tests/test_math tests/test_simulation tests/test_contracts tests/test_bench tests/test_oracle_hardening tests/test_math_golden tests/test_math_checked tests/fuzz_math_diff tests/fuzz_contracts tests/cov_* tests/*.gcda tests/*.gcno src/*.gcda src/*.gcno *.gcov
+	rm -f tests/test_math tests/test_simulation tests/test_contracts tests/test_bench tests/test_oracle_hardening tests/test_math_golden tests/test_math_checked tests/test_c_consumer tests/fuzz_math_diff tests/fuzz_contracts tests/cov_* tests/*.gcda tests/*.gcno src/*.gcda src/*.gcno *.gcov
 

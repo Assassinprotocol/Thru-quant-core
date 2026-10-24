@@ -311,4 +311,53 @@ export class OracleClient {
       k,
     };
   }
+
+  async getTwap(
+    symbol: string,
+    limit: number = 30
+  ): Promise<{
+    symbol: string;
+    symbolId: number;
+    twap: number;
+    samples: number;
+    minPrice: number;
+    maxPrice: number;
+    currentPrice: number;
+    publishSlot: string;
+  }> {
+    const cleanSym = symbol.trim().toUpperCase();
+    const encoded = cleanSym.includes("/") ? cleanSym : `${cleanSym}/USD`;
+    const res = await fetch(`${this.daemonUrl}/v2/feeds/${encoded}/twap?limit=${limit}`, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch TWAP for ${symbol}: HTTP ${res.status}`);
+    }
+    return (await res.json()) as any;
+  }
+
+  async getAttestation(
+    symbol: string
+  ): Promise<{
+    symbol: string;
+    symbolId: number;
+    publishSlot: string;
+    price: number;
+    priceRaw: string;
+    confidenceBps: number;
+    wireSizeBytes: number;
+    binaryWireHex: string;
+    binaryWireBase64: string;
+    sha256: string;
+  }> {
+    const cleanSym = symbol.trim().toUpperCase();
+    const encoded = cleanSym.includes("/") ? cleanSym : `${cleanSym}/USD`;
+    const res = await fetch(`${this.daemonUrl}/v2/feeds/${encoded}/attestation`, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch attestation for ${symbol}: HTTP ${res.status}`);
+    }
+    return (await res.json()) as any;
+  }
 }

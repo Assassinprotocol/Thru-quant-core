@@ -18,6 +18,18 @@ cd sdk && npm install && npm run build
 ### Option B: Standalone Drop-in
 Copy `sdk/dist/thru-oracle.js` into your project. Works in Node.js (v18+), Bun, Deno, or modern browsers with zero external dependencies.
 
+### Option C: On-Chain C Smart Contract (ThruVM / RISC-V)
+Downstream smart contracts on ThruVM include `thru_oracle_consumer.h` and validate staleness directly:
+```c
+#include <thru_oracle_consumer.h>
+
+uint64_t price = 0;
+thru_consumer_status_t status = thru_oracle_read_price(
+    feed_ptr, current_slot, 60, 50, &price
+);
+```
+See runnable reference lending contract in `examples/c_consumer/lending_liquidator.c`.
+
 ---
 
 ## 2. Read Oracle Prices in 3 Lines

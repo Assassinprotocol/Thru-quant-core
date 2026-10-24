@@ -89,3 +89,25 @@ export function evaluateRiskSignals(
     depegBps: depeg,
   };
 }
+
+export interface TwapResult {
+  twap: number;
+  samples: number;
+  minPrice: number;
+  maxPrice: number;
+}
+
+export function calculateTwap(prices: number[]): TwapResult {
+  if (prices.length === 0) {
+    return { twap: 0, samples: 0, minPrice: 0, maxPrice: 0 };
+  }
+  const sum = prices.reduce((acc, p) => acc + p, 0);
+  const avg = sum / prices.length;
+  const decimals = avg < 2 ? 6 : 2;
+  return {
+    twap: Number(avg.toFixed(decimals)),
+    samples: prices.length,
+    minPrice: Math.min(...prices),
+    maxPrice: Math.max(...prices),
+  };
+}

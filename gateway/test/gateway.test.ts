@@ -164,6 +164,29 @@ describe("Gateway v2 API", () => {
     assert.ok(res.body.includes("thru_oracle_v2_confidence_bps{symbol=\"BTC_USD\"} 25"));
   });
 
+  test("GET /v2/feeds/:symbol/twap calculates TWAP and range", async () => {
+    const res = await app.inject({ method: "GET", url: "/v2/feeds/BTC/twap" });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    assert.equal(body.symbolId, 1);
+    assert.equal(body.twap, 84000.0);
+    assert.equal(body.samples, 1);
+    assert.equal(body.minPrice, 84000.0);
+    assert.equal(body.maxPrice, 84000.0);
+    assert.equal(body.publishSlot, "1050");
+  });
+
+  test("GET /v2/feeds/:symbol/attestation exports 88-byte binary wire payload", async () => {
+    const res = await app.inject({ method: "GET", url: "/v2/feeds/BTC/attestation" });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    assert.equal(body.symbolId, 1);
+    assert.equal(body.wireSizeBytes, 88);
+    assert.ok(typeof body.binaryWireHex === "string" && body.binaryWireHex.length === 176);
+    assert.ok(body.binaryWireHex.startsWith("454546540200000001000000")); // TFEE, v2, id 1
+    assert.ok(typeof body.sha256 === "string" && body.sha256.length === 64);
+  });
+
   test("GET /v2/publishers returns operator quorum and participation metrics", async () => {
     const res = await app.inject({ method: "GET", url: "/v2/publishers" });
     assert.equal(res.statusCode, 200);

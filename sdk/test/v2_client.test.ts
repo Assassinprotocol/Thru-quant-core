@@ -30,6 +30,42 @@ test("OracleClient v2: getLatestPrice and calculateSafeValuation", async (t) => 
       return;
     }
 
+    if (req.url?.startsWith("/v2/feeds/BTC/USD/twap")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          symbol: "BTC/USD",
+          symbolId: 1,
+          twap: 68050.0,
+          samples: 10,
+          minPrice: 67900.0,
+          maxPrice: 68200.0,
+          currentPrice: 68000.0,
+          publishSlot: "1492000",
+        })
+      );
+      return;
+    }
+
+    if (req.url === "/v2/feeds/BTC/USD/attestation") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          symbol: "BTC/USD",
+          symbolId: 1,
+          publishSlot: "1492000",
+          price: 68000.0,
+          priceRaw: "6800000000000",
+          confidenceBps: 20,
+          wireSizeBytes: 88,
+          binaryWireHex: "45454654",
+          binaryWireBase64: "RUVERQ==",
+          sha256: "abc123",
+        })
+      );
+      return;
+    }
+
     res.writeHead(404);
     res.end();
   });
@@ -68,6 +104,20 @@ test("OracleClient v2: getLatestPrice and calculateSafeValuation", async (t) => 
     assert.equal(typeof unsub, "function");
     unsub();
     assert.equal(received, false);
+  });
+
+  await t.test("getTwap fetches canonical TWAP from daemon", async () => {
+    const twap = await client.getTwap("BTC/USD", 10);
+    assert.equal(twap.symbol, "BTC/USD");
+    assert.equal(twap.twap, 68050.0);
+    assert.equal(twap.samples, 10);
+  });
+
+  await t.test("getAttestation fetches binary wire payload and sha256", async () => {
+    const att = await client.getAttestation("BTC/USD");
+    assert.equal(att.symbol, "BTC/USD");
+    assert.equal(att.wireSizeBytes, 88);
+    assert.equal(att.binaryWireHex, "45454654");
   });
 
   server.close();

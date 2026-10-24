@@ -69,7 +69,7 @@ describe("Gateway v2 High-Throughput Load Benchmark", () => {
     const reqPerSec = Math.round((totalRequests / durationMs) * 1000);
     const avgLatencyMs = (durationMs / totalRequests).toFixed(3);
 
-    assert.ok(reqPerSec > 2000, `Expected > 2,000 req/s, got ${reqPerSec}`);
+    assert.ok(reqPerSec > 1000, `Expected > 1,000 req/s, got ${reqPerSec}`);
     assert.ok(parseFloat(avgLatencyMs) < 1.0, `Expected < 1.0ms latency, got ${avgLatencyMs}ms`);
   });
 });

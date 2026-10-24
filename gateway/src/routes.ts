@@ -1,5 +1,6 @@
+import crypto from "node:crypto";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import type { DatabaseClient, FeedSnapshotRecord } from "@thru-quant/indexer";
+import { type DatabaseClient, type FeedSnapshotRecord, calculateTwap } from "@thru-quant/indexer";
 import type { FeedResponse, RiskResponse, ProvenanceResponse } from "./types.ts";
 
 export const REGIME_NAMES: Record<number, string> = {
@@ -103,6 +104,25 @@ export function formatFeedResponse(s: FeedSnapshotRecord): FeedResponse {
   };
 }
 
+export function serializeFeedAccountView(s: FeedSnapshotRecord): Uint8Array {
+  const buf = new Uint8Array(88);
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  view.setUint32(0, 0x54464545, true);
+  view.setUint32(4, 2, true);
+  view.setUint32(8, s.symbolId, true);
+  view.setUint32(12, 1, true);
+  view.setBigUint64(16, s.priceRaw, true);
+  view.setBigUint64(24, s.priceRaw, true);
+  view.setBigUint64(32, BigInt(s.confidenceBps), true);
+  view.setBigUint64(40, s.publishSlot, true);
+  view.setBigUint64(48, s.prevPublishSlot, true);
+  view.setBigUint64(56, s.medianSourceTs, true);
+  view.setUint32(64, s.contributorCount, true);
+  view.setUint32(68, s.flags, true);
+  buf[72] = s.contributorMask;
+  return buf;
+}
+
 export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
   const startTime = Date.now();
 
@@ -201,6 +221,80 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
 
   app.get("/v2/feeds/:base/:quote/history", async (req: FastifyRequest<{ Params: { base: string; quote: string }; Querystring: { limit?: string } }>, reply: FastifyReply) => {
     return handleGetHistory(`${req.params.base}/${req.params.quote}`, req.query.limit, reply);
+  });
+
+  const handleGetTwap = async (symbolParam: string, limitQuery: string | undefined, reply: FastifyReply) => {
+    const symbolId = resolveSymbolId(symbolParam);
+    if (symbolId === undefined) {
+      reply.status(404);
+      return { error: `Symbol not found: ${symbolParam}`, code: "ORACLE_FEED_NOT_FOUND" };
+    }
+
+    const limit = Math.min(100, Math.max(1, parseInt(limitQuery || "30", 10)));
+    const prices = await db.getRecentPrices(symbolId, limit);
+    const snapshot = await db.getSnapshot(symbolId);
+
+    const effectivePrices = prices.length > 0 ? prices : (snapshot ? [snapshot.price] : []);
+    const twapData = calculateTwap(effectivePrices);
+
+    return {
+      symbol: symbolParam,
+      symbolId,
+      twap: twapData.twap,
+      samples: twapData.samples,
+      minPrice: twapData.minPrice,
+      maxPrice: twapData.maxPrice,
+      currentPrice: snapshot ? snapshot.price : (effectivePrices[effectivePrices.length - 1] ?? 0),
+      publishSlot: snapshot ? snapshot.publishSlot.toString() : "0",
+    };
+  };
+
+  app.get("/v2/feeds/:symbol/twap", async (req: FastifyRequest<{ Params: { symbol: string }; Querystring: { limit?: string } }>, reply: FastifyReply) => {
+    return handleGetTwap(req.params.symbol, req.query.limit, reply);
+  });
+
+  app.get("/v2/feeds/:base/:quote/twap", async (req: FastifyRequest<{ Params: { base: string; quote: string }; Querystring: { limit?: string } }>, reply: FastifyReply) => {
+    return handleGetTwap(`${req.params.base}/${req.params.quote}`, req.query.limit, reply);
+  });
+
+  const handleGetAttestation = async (symbolParam: string, reply: FastifyReply) => {
+    const symbolId = resolveSymbolId(symbolParam);
+    if (symbolId === undefined) {
+      reply.status(404);
+      return { error: `Symbol not found: ${symbolParam}`, code: "ORACLE_FEED_NOT_FOUND" };
+    }
+
+    const snapshot = await db.getSnapshot(symbolId);
+    if (!snapshot) {
+      reply.status(404);
+      return { error: `No data published yet for symbol: ${symbolParam}`, code: "ORACLE_FEED_NO_DATA" };
+    }
+
+    const wireBytes = serializeFeedAccountView(snapshot);
+    const wireHex = Buffer.from(wireBytes).toString("hex");
+    const wireBase64 = Buffer.from(wireBytes).toString("base64");
+    const sha256 = crypto.createHash("sha256").update(wireBytes).digest("hex");
+
+    return {
+      symbol: snapshot.symbol,
+      symbolId: snapshot.symbolId,
+      publishSlot: snapshot.publishSlot.toString(),
+      price: snapshot.price,
+      priceRaw: snapshot.priceRaw.toString(),
+      confidenceBps: snapshot.confidenceBps,
+      wireSizeBytes: wireBytes.length,
+      binaryWireHex: wireHex,
+      binaryWireBase64: wireBase64,
+      sha256,
+    };
+  };
+
+  app.get("/v2/feeds/:symbol/attestation", async (req: FastifyRequest<{ Params: { symbol: string } }>, reply: FastifyReply) => {
+    return handleGetAttestation(req.params.symbol, reply);
+  });
+
+  app.get("/v2/feeds/:base/:quote/attestation", async (req: FastifyRequest<{ Params: { base: string; quote: string } }>, reply: FastifyReply) => {
+    return handleGetAttestation(`${req.params.base}/${req.params.quote}`, reply);
   });
 
   const handleStream = async (symbolParam: string, reply: FastifyReply) => {

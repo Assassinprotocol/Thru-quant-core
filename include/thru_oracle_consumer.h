@@ -83,4 +83,35 @@ static inline bool thru_oracle_had_outlier_rejected(const thru_feed_account_view
     return feed && ((feed->flags & THRU_CONSUMER_FLAG_OUTLIER_REJECTED) != 0);
 }
 
+static inline bool thru_oracle_try_read(
+    const thru_feed_account_view_t *feed,
+    uint64_t *out_price
+) {
+    if (!feed || !out_price || feed->magic != THRU_ORACLE_V2_FEED_MAGIC || feed->status != 1 || feed->price == 0) {
+        return false;
+    }
+    *out_price = feed->price;
+    return true;
+}
+
+static inline thru_consumer_status_t thru_oracle_read_with_age(
+    const thru_feed_account_view_t *feed,
+    uint64_t current_slot,
+    uint64_t *out_price,
+    uint64_t *out_age_slots
+) {
+    if (!feed || !out_price || !out_age_slots) {
+        return THRU_CONSUMER_ERR_PRICE_ZERO;
+    }
+    if (feed->magic != THRU_ORACLE_V2_FEED_MAGIC) {
+        return THRU_CONSUMER_ERR_INVALID_MAGIC;
+    }
+    if (feed->status != 1 || feed->price == 0) {
+        return THRU_CONSUMER_ERR_PRICE_ZERO;
+    }
+    *out_price = feed->price;
+    *out_age_slots = (current_slot >= feed->publish_slot) ? (current_slot - feed->publish_slot) : 0;
+    return THRU_CONSUMER_OK;
+}
+
 #endif /* THRU_ORACLE_CONSUMER_H */

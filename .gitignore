@@ -9,8 +9,13 @@ build/
 
 # Test & feeder binaries
 tests/test_*
+!tests/test_*.c
+!tests/test_*.ts
+!tests/test_*.py
 tests/fuzz_*
+!tests/fuzz_*.c
 tests/bench_*
+!tests/bench_*.c
 tests/cov_*
 tests/*.gcda
 tests/*.gcno

@@ -24,6 +24,10 @@ jobs:
           make test-hardening
           make test-math-golden
           make test-math-checked
+          make test-v2-math
+          make test-v2-golden
+          make test-v2-contracts
+          make test-c-consumer
           make bench-math
           make clean-tests
 
@@ -83,8 +87,8 @@ jobs:
           make build-feeder
           make bench-api
 
-  typescript-sdk:
-    name: TypeScript SDK & Example Consumer
+  services-and-sdk:
+    name: TypeScript Services, SDK & Remediation Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -95,14 +99,21 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Build and Test SDK
+      - name: Build and Test SDK, Indexer, Gateway, and MCP
         run: |
           make build-sdk
           make test-sdk
+          cd indexer && ([ -d node_modules ] || npm install --silent) && npm run build && cd ..
+          make test-indexer
+          cd gateway && ([ -d node_modules ] || npm install --silent) && npm run build && cd ..
+          make test-gateway
+          cd mcp && ([ -d node_modules ] || npm install --silent) && npm run build && cd ..
+          make test-mcp
+          make test-audit-remediation
           make run-example
 
   claims-and-lint:
-    name: Claims Linter & C Static Checks
+    name: Claims Linter, C Static Checks & Links
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -116,6 +127,7 @@ jobs:
           make lint-c
           make lint-claims
           make verify-claims
+          make check-links
 
   rv64imc-build:
     name: RISC-V RV64IMC Contract Build & ABI Codegen Check

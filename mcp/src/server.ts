@@ -101,26 +101,20 @@ export function createMcpServer(config: McpConfig = {}) {
         const slotsCount = Math.min(200, Math.max(1, Number(args.slots || 30)));
 
         try {
-          const res = await fetch(`${gatewayUrl}/v2/feeds/${clean}/history?limit=${slotsCount}`);
+          const res = await fetch(`${gatewayUrl}/v2/feeds/${clean}/twap?limit=${slotsCount}`);
           if (res.ok) {
             const data = (await res.json()) as any;
-            const history = Array.isArray(data.history) ? data.history : [];
-            if (history.length > 0) {
-              const prices = history.map((h: any) => Number(h.price));
-              const twap = prices.reduce((a: number, b: number) => a + b, 0) / prices.length;
-              return {
-                symbol: clean,
-                twap: Number(twap.toFixed(twap < 2 ? 4 : 2)),
-                samples: prices.length,
-                minPrice: Math.min(...prices),
-                maxPrice: Math.max(...prices),
-                startSlot: history[0]?.slot,
-                endSlot: history[history.length - 1]?.slot,
-              };
-            }
+            return {
+              symbol: data.symbol,
+              twap: data.twap,
+              samples: data.samples,
+              minPrice: data.minPrice,
+              maxPrice: data.maxPrice,
+              currentPrice: data.currentPrice,
+              publishSlot: data.publishSlot,
+            };
           }
         } catch {
-          // Fallback if gateway history endpoint is unreachable
         }
 
         const current = await client.getLatestPrice(clean);
@@ -199,7 +193,7 @@ export function createMcpServer(config: McpConfig = {}) {
           capabilities: { tools: {} },
           serverInfo: {
             name: "thru-quant-mcp",
-            version: "0.1.0",
+            version: "1.0.0",
           },
         },
       };

@@ -6,6 +6,7 @@ import {
   calculateRollingVolBps,
   calculateDepegBps,
   classifyMarketRegime,
+  calculateTwap,
   REGIME_CALM,
   REGIME_ELEVATED_VOL,
   REGIME_EXTREME_DISPERSION,
@@ -23,6 +24,22 @@ describe("Indexer Risk Engine", () => {
     const prices = [100, 102, 98, 103, 97];
     const vol = calculateRollingVolBps(prices);
     assert.ok(vol > 200, `Expected vol > 200 bps, got ${vol}`);
+  });
+
+  test("calculates canonical TWAP and price range", () => {
+    assert.deepEqual(calculateTwap([]), { twap: 0, samples: 0, minPrice: 0, maxPrice: 0 });
+
+    const series = [2500, 2550, 2600, 2650, 2700];
+    const res = calculateTwap(series);
+    assert.equal(res.twap, 2600);
+    assert.equal(res.samples, 5);
+    assert.equal(res.minPrice, 2500);
+    assert.equal(res.maxPrice, 2700);
+
+    const subDollar = [0.9995, 1.0002, 1.0000];
+    const resSub = calculateTwap(subDollar);
+    assert.equal(resSub.twap, 0.9999);
+    assert.equal(resSub.samples, 3);
   });
 
   test("calculates stablecoin depeg only for USD pairs", () => {
