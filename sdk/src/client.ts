@@ -360,4 +360,107 @@ export class OracleClient {
     }
     return (await res.json()) as any;
   }
+
+  async getLatestPriceUpdates(symbols: string[]): Promise<{
+    slot: string;
+    timestamp: number;
+    symbols: string[];
+    count: number;
+    binary: {
+      encoding: string;
+      data: string[];
+      combinedHex: string;
+      totalSizeBytes: number;
+      sha256: string;
+    };
+    parsed: LatestPriceResult[];
+  }> {
+    const symList = symbols.map(s => s.trim().toUpperCase()).join(",");
+    const res = await fetch(`${this.daemonUrl}/v2/updates/price/latest?symbols=${encodeURIComponent(symList)}`, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch batched price updates: HTTP ${res.status}`);
+    }
+    return (await res.json()) as any;
+  }
+
+  async getBenchmarkPrice(
+    symbol: string,
+    slot: number | bigint
+  ): Promise<{
+    symbol: string;
+    symbolId: number;
+    publishSlot: string;
+    price: number;
+    priceRaw: string;
+    confidenceBps: number;
+    medianSourceTs: string;
+    flags: number;
+    verified: boolean;
+    source: string;
+  }> {
+    const cleanSym = symbol.trim().toUpperCase();
+    const encoded = cleanSym.includes("/") ? cleanSym : `${cleanSym}/USD`;
+    const res = await fetch(`${this.daemonUrl}/v2/feeds/${encoded}/benchmark?slot=${slot}`, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch benchmark for ${symbol} at slot ${slot}: HTTP ${res.status}`);
+    }
+    return (await res.json()) as any;
+  }
+
+  async getCrossRate(
+    baseSymbol: string,
+    quoteSymbol: string
+  ): Promise<{
+    data: LatestPriceResult;
+    derived: boolean;
+    formula: string;
+  }> {
+    const base = baseSymbol.trim().toUpperCase();
+    const quote = quoteSymbol.trim().toUpperCase();
+    const res = await fetch(`${this.daemonUrl}/v2/feeds/${base}/${quote}`, {
+      signal: AbortSignal.timeout(this.timeoutMs),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch cross rate ${base}/${quote}: HTTP ${res.status}`);
+    }
+    return (await res.json()) as any;
+  }
+
+  calculatePerpMarkPrice(
+    indexPrice: number,
+    orderBookMedian: number,
+    maxDeviationBps: number = 300
+  ): {
+    markPrice: number;
+    indexPrice: number;
+    fundingRate: number;
+    isClamped: boolean;
+  } {
+    if (indexPrice <= 0) {
+      return { markPrice: 0, indexPrice: 0, fundingRate: 0, isClamped: false };
+    }
+    const maxDelta = (indexPrice * maxDeviationBps) / 10000;
+    const rawDelta = orderBookMedian - indexPrice;
+    let clampedDelta = rawDelta;
+    let isClamped = false;
+    if (rawDelta > maxDelta) {
+      clampedDelta = maxDelta;
+      isClamped = true;
+    } else if (rawDelta < -maxDelta) {
+      clampedDelta = -maxDelta;
+      isClamped = true;
+    }
+    const markPrice = Math.max(0, indexPrice + clampedDelta);
+    const fundingRate = clampedDelta / indexPrice;
+    return { markPrice, indexPrice, fundingRate, isClamped };
+  }
+
+  estimateComputeUnits(feedCount: number): number {
+    const safeCount = Math.max(1, feedCount);
+    return 3500 + (safeCount * 2500);
+  }
 }

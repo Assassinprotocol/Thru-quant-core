@@ -73,6 +73,46 @@ export function createMcpServer(config: McpConfig = {}) {
         required: ["slot"],
       },
     },
+    {
+      name: "get_perp_mark_price",
+      description: "Calculate clamped mark price and 8-hour funding rate against oracle index for perpetual DEX",
+      inputSchema: {
+        type: "object",
+        properties: {
+          symbol: {
+            type: "string",
+            description: "Trading pair symbol, e.g. BTC, ETH, SOL",
+          },
+          orderbook_mid: {
+            type: "number",
+            description: "Current orderbook or pool mid price",
+          },
+          max_deviation_bps: {
+            type: "number",
+            description: "Max clamping deviation in basis points (default 300 bps)",
+          },
+        },
+        required: ["symbol", "orderbook_mid"],
+      },
+    },
+    {
+      name: "get_cross_rate",
+      description: "Calculate synthetic cross-currency rate between two tokens (e.g. ETH/BTC from ETH/USD and BTC/USD)",
+      inputSchema: {
+        type: "object",
+        properties: {
+          base_symbol: {
+            type: "string",
+            description: "Base asset symbol, e.g. ETH, SOL",
+          },
+          quote_symbol: {
+            type: "string",
+            description: "Quote asset symbol, e.g. BTC, ETH",
+          },
+        },
+        required: ["base_symbol", "quote_symbol"],
+      },
+    },
   ];
 
   async function handleToolCall(name: string, args: Record<string, any>): Promise<any> {
@@ -172,6 +212,38 @@ export function createMcpServer(config: McpConfig = {}) {
           ed25519SignatureQuorum: "VALID (6/7 signatures verified)",
           aggregateSignerBitmask: "0x3f",
           auditTimestamp: Math.floor(Date.now() / 1000),
+        };
+      }
+
+      case "get_perp_mark_price": {
+        const symbol = String(args.symbol || "BTC");
+        const orderbookMid = Number(args.orderbook_mid);
+        const maxDevBps = Number(args.max_deviation_bps || 300);
+        const quote = await client.getLatestPrice(symbol);
+        const perp = client.calculatePerpMarkPrice(quote.price, orderbookMid, maxDevBps);
+        return {
+          symbol: quote.symbol,
+          indexPrice: perp.indexPrice,
+          orderbookMid,
+          markPrice: perp.markPrice,
+          fundingRateBps: Math.round(perp.fundingRate * 10000),
+          fundingRateAnnualizedPct: Number((perp.fundingRate * 3 * 365 * 100).toFixed(2)),
+          isClamped: perp.isClamped,
+          slot: quote.slot,
+        };
+      }
+
+      case "get_cross_rate": {
+        const base = String(args.base_symbol || "ETH");
+        const quote = String(args.quote_symbol || "BTC");
+        const cross = await client.getCrossRate(base, quote);
+        return {
+          symbol: cross.data.symbol,
+          price: cross.data.price,
+          confidence: cross.data.confidence,
+          slot: cross.data.slot,
+          derived: cross.derived,
+          formula: cross.formula,
         };
       }
 

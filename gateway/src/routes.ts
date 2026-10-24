@@ -174,6 +174,53 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
   const handleGetFeed = async (symbolParam: string, reply: FastifyReply) => {
     const symbolId = resolveSymbolId(symbolParam);
     if (symbolId === undefined) {
+      const parts = symbolParam.split(/[\/\-_]/);
+      if (parts.length === 2) {
+        const baseId = resolveSymbolId(parts[0]);
+        const quoteId = resolveSymbolId(parts[1]);
+        if (baseId !== undefined && quoteId !== undefined && baseId !== quoteId) {
+          const baseSnap = await db.getSnapshot(baseId);
+          const quoteSnap = await db.getSnapshot(quoteId);
+          if (baseSnap && quoteSnap && quoteSnap.price > 0) {
+            const crossPrice = Number((baseSnap.price / quoteSnap.price).toFixed(8));
+            const crossConfBps = baseSnap.confidenceBps + quoteSnap.confidenceBps;
+            const confFraction = crossConfBps / 10000;
+            const minSlot = (baseSnap.publishSlot < quoteSnap.publishSlot ? baseSnap.publishSlot : quoteSnap.publishSlot).toString();
+            const nowTs = Math.floor(Date.now() / 1000);
+            const medianTs = baseSnap.medianSourceTs < quoteSnap.medianSourceTs ? baseSnap.medianSourceTs : quoteSnap.medianSourceTs;
+            const ageSeconds = Math.max(0, nowTs - Number(medianTs));
+            const isStale = (baseSnap.flags & 1) !== 0 || (quoteSnap.flags & 1) !== 0 || ageSeconds > 60;
+
+            const derived: FeedResponse = {
+              symbolId: (baseId * 100) + quoteId,
+              symbol: `${parts[0].toUpperCase()}/${parts[1].toUpperCase()}`,
+              price: crossPrice,
+              priceRaw: BigInt(Math.round(crossPrice * 1e8)).toString(),
+              confidenceBps: crossConfBps,
+              confidenceLowerBound: Number((crossPrice * (1 - confFraction)).toFixed(8)),
+              confidenceUpperBound: Number((crossPrice * (1 + confFraction)).toFixed(8)),
+              publishSlot: minSlot,
+              prevPublishSlot: minSlot,
+              medianSourceTs: medianTs.toString(),
+              ageSeconds,
+              contributorCount: Math.min(baseSnap.contributorCount, quoteSnap.contributorCount),
+              contributorMask: baseSnap.contributorMask & quoteSnap.contributorMask,
+              flags: (baseSnap.flags | quoteSnap.flags),
+              isStale,
+              isBigMove: (baseSnap.flags & 2) !== 0 || (quoteSnap.flags & 2) !== 0,
+              isLowConfidence: (baseSnap.flags & 4) !== 0 || (quoteSnap.flags & 4) !== 0,
+              hadOutlierRejected: (baseSnap.flags & 8) !== 0 || (quoteSnap.flags & 8) !== 0,
+              provenance: {
+                slot: minSlot,
+                accountAddress: `cross-${baseId}-${quoteId}`,
+                magic: "0x54464545",
+              },
+            };
+            reply.header("x-oracle-slot", minSlot);
+            return { data: derived, derived: true, formula: `${parts[0].toUpperCase()}/USD / ${parts[1].toUpperCase()}/USD` };
+          }
+        }
+      }
       reply.status(404);
       return { error: `Feed not found for symbol: ${symbolParam}`, code: "ORACLE_FEED_NOT_FOUND" };
     }
@@ -295,6 +342,141 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
 
   app.get("/v2/feeds/:base/:quote/attestation", async (req: FastifyRequest<{ Params: { base: string; quote: string } }>, reply: FastifyReply) => {
     return handleGetAttestation(`${req.params.base}/${req.params.quote}`, reply);
+  });
+
+  app.get("/v2/updates/price/latest", async (req: FastifyRequest<{ Querystring: { symbols?: string | string[]; ids?: string | string[] } }>, reply: FastifyReply) => {
+    let targetSymbols: string[] = [];
+    if (req.query.symbols) {
+      if (Array.isArray(req.query.symbols)) {
+        targetSymbols = req.query.symbols;
+      } else {
+        targetSymbols = req.query.symbols.split(",").map(s => s.trim());
+      }
+    } else if (req.query.ids) {
+      const rawIds = Array.isArray(req.query.ids) ? req.query.ids : req.query.ids.split(",");
+      for (const idStr of rawIds) {
+        const idNum = parseInt(idStr.trim(), 10);
+        const sym = Object.keys(SYMBOL_ID_LOOKUP).find(k => SYMBOL_ID_LOOKUP[k] === idNum && k.includes("/"));
+        if (sym) targetSymbols.push(sym);
+      }
+    }
+
+    const snapshots = await db.listSnapshots();
+    const selected = targetSymbols.length > 0
+      ? targetSymbols.map(sym => {
+          const id = resolveSymbolId(sym);
+          return id !== undefined ? snapshots.find(s => s.symbolId === id) : undefined;
+        }).filter((s): s is FeedSnapshotRecord => s !== undefined)
+      : snapshots;
+
+    if (selected.length === 0) {
+      reply.status(404);
+      return { error: "No matching price feeds found for updates", code: "ORACLE_NO_FEEDS" };
+    }
+
+    const binaryData: string[] = [];
+    const combinedBuffers: Uint8Array[] = [];
+    for (const s of selected) {
+      const wireBytes = serializeFeedAccountView(s);
+      binaryData.push(Buffer.from(wireBytes).toString("hex"));
+      combinedBuffers.push(wireBytes);
+    }
+
+    const totalLength = combinedBuffers.reduce((sum, b) => sum + b.length, 0);
+    const combinedWire = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const b of combinedBuffers) {
+      combinedWire.set(b, offset);
+      offset += b.length;
+    }
+
+    const combinedHex = Buffer.from(combinedWire).toString("hex");
+    const sha256 = crypto.createHash("sha256").update(combinedWire).digest("hex");
+
+    const parsed = selected.map(formatFeedResponse);
+    const maxSlot = parsed.reduce((max, f) => (BigInt(f.publishSlot) > BigInt(max) ? f.publishSlot : max), "0");
+
+    reply.header("x-oracle-slot", maxSlot);
+    return {
+      slot: maxSlot,
+      timestamp: Math.floor(Date.now() / 1000),
+      symbols: selected.map(s => s.symbol),
+      count: selected.length,
+      binary: {
+        encoding: "hex",
+        data: binaryData,
+        combinedHex,
+        totalSizeBytes: totalLength,
+        sha256,
+      },
+      parsed,
+    };
+  });
+
+  const handleGetBenchmark = async (symbolParam: string, slotQuery: string | undefined, reply: FastifyReply) => {
+    const symbolId = resolveSymbolId(symbolParam);
+    if (symbolId === undefined) {
+      reply.status(404);
+      return { error: `Symbol not found: ${symbolParam}`, code: "ORACLE_FEED_NOT_FOUND" };
+    }
+    if (!slotQuery) {
+      reply.status(400);
+      return { error: "Missing required query parameter: slot", code: "ORACLE_INVALID_PARAMS" };
+    }
+
+    const targetSlot = BigInt(slotQuery);
+    const agg = await db.getAggregateBySlot(symbolId, targetSlot);
+    if (agg) {
+      reply.header("x-oracle-slot", targetSlot.toString());
+      return {
+        symbol: agg.symbol,
+        symbolId: agg.symbolId,
+        publishSlot: agg.publishSlot.toString(),
+        price: agg.price,
+        priceRaw: agg.priceRaw.toString(),
+        confidenceBps: agg.confidenceBps,
+        medianSourceTs: agg.medianSourceTs.toString(),
+        flags: agg.flags,
+        verified: true,
+        source: "archive_aggregate",
+      };
+    }
+
+    const snapshot = await db.getSnapshot(symbolId);
+    if (snapshot && snapshot.publishSlot === targetSlot) {
+      reply.header("x-oracle-slot", targetSlot.toString());
+      return {
+        symbol: snapshot.symbol,
+        symbolId: snapshot.symbolId,
+        publishSlot: snapshot.publishSlot.toString(),
+        price: snapshot.price,
+        priceRaw: snapshot.priceRaw.toString(),
+        confidenceBps: snapshot.confidenceBps,
+        medianSourceTs: snapshot.medianSourceTs.toString(),
+        flags: snapshot.flags,
+        verified: true,
+        source: "live_snapshot",
+      };
+    }
+
+    reply.status(404);
+    return {
+      error: `No benchmark record found for symbol ${symbolParam} at slot ${slotQuery}`,
+      code: "ORACLE_BENCHMARK_NOT_FOUND",
+    };
+  };
+
+  app.get("/v2/feeds/:symbol/benchmark", async (req: FastifyRequest<{ Params: { symbol: string }; Querystring: { slot?: string } }>, reply: FastifyReply) => {
+    return handleGetBenchmark(req.params.symbol, req.query.slot, reply);
+  });
+
+  app.get("/v2/feeds/:base/:quote/benchmark", async (req: FastifyRequest<{ Params: { base: string; quote: string }; Querystring: { slot?: string } }>, reply: FastifyReply) => {
+    return handleGetBenchmark(`${req.params.base}/${req.params.quote}`, req.query.slot, reply);
+  });
+
+  app.get("/v2/updates/price/:slot", async (req: FastifyRequest<{ Params: { slot: string }; Querystring: { symbol?: string } }>, reply: FastifyReply) => {
+    const symbol = req.query.symbol || "BTC";
+    return handleGetBenchmark(symbol, req.params.slot, reply);
   });
 
   const handleStream = async (symbolParam: string, reply: FastifyReply) => {

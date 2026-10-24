@@ -28,7 +28,7 @@ thru_consumer_status_t status = thru_oracle_read_price(
     feed_ptr, current_slot, 60, 50, &price
 );
 ```
-See runnable reference lending contract in `examples/c_consumer/lending_liquidator.c`.
+See runnable reference contracts in `examples/c_consumer/` (`lending_liquidator.c`, `perp_dex_consumer.c`, `dual_oracle_guard.c`).
 
 ---
 

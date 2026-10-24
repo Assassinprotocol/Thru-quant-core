@@ -187,6 +187,44 @@ describe("Gateway v2 API", () => {
     assert.ok(typeof body.sha256 === "string" && body.sha256.length === 64);
   });
 
+  test("GET /v2/updates/price/latest returns batched binary wire and parsed array", async () => {
+    const res = await app.inject({ method: "GET", url: "/v2/updates/price/latest?symbols=BTC,ETH" });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    assert.equal(body.count, 2);
+    assert.equal(body.binary.data.length, 2);
+    assert.equal(body.binary.totalSizeBytes, 176);
+    assert.equal(body.binary.combinedHex.length, 352);
+    assert.ok(typeof body.binary.sha256 === "string" && body.binary.sha256.length === 64);
+    assert.equal(body.parsed.length, 2);
+    assert.equal(body.parsed[0].symbol, "BTC/USD");
+    assert.equal(body.parsed[1].symbol, "ETH/USD");
+  });
+
+  test("GET /v2/feeds/:symbol/benchmark returns verified price by slot", async () => {
+    const res = await app.inject({ method: "GET", url: "/v2/feeds/BTC/benchmark?slot=1050" });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    assert.equal(body.symbolId, 1);
+    assert.equal(body.publishSlot, "1050");
+    assert.equal(body.price, 84000.0);
+    assert.equal(body.verified, true);
+
+    const resNotFound = await app.inject({ method: "GET", url: "/v2/feeds/BTC/benchmark?slot=999999" });
+    assert.equal(resNotFound.statusCode, 404);
+  });
+
+  test("GET /v2/feeds/:base/:quote synthesizes triangular cross rate", async () => {
+    const res = await app.inject({ method: "GET", url: "/v2/feeds/ETH/BTC" });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    assert.equal(body.derived, true);
+    assert.equal(body.data.symbol, "ETH/BTC");
+    const expected = Number((2500.0 / 84000.0).toFixed(8));
+    assert.equal(body.data.price, expected);
+    assert.ok(body.data.confidenceBps > 0);
+  });
+
   test("GET /v2/publishers returns operator quorum and participation metrics", async () => {
     const res = await app.inject({ method: "GET", url: "/v2/publishers" });
     assert.equal(res.statusCode, 200);

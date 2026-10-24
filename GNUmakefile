@@ -38,14 +38,14 @@ fuzz-contracts:
 	rm -f tests/fuzz_contracts
 
 test-c-consumer:
-	gcc -O2 -fsanitize=address,undefined -Iinclude -Iexamples/c_consumer tests/test_c_consumer.c examples/c_consumer/lending_liquidator.c src/thru_math.c -o tests/test_c_consumer
+	gcc -O2 -fsanitize=address,undefined -Iinclude -Iexamples/c_consumer tests/test_c_consumer.c examples/c_consumer/lending_liquidator.c examples/c_consumer/perp_dex_consumer.c examples/c_consumer/dual_oracle_guard.c src/thru_math.c -o tests/test_c_consumer
 	./tests/test_c_consumer
 	rm -f tests/test_c_consumer
 
 lint-c:
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc src/market_oracle.c src/thru_math.c
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Isrc -Isrc/v2 src/v2/aggregation_math.c src/v2/oracle_v2.c
-	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Iexamples/c_consumer examples/c_consumer/lending_liquidator.c src/thru_math.c
+	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Iexamples/c_consumer examples/c_consumer/lending_liquidator.c examples/c_consumer/perp_dex_consumer.c examples/c_consumer/dual_oracle_guard.c src/thru_math.c
 
 lint-clob:
 	gcc -fsyntax-only -Wall -Wextra -Wshadow -Wconversion -Werror -Iinclude -Iresearch/clob research/clob/clob_engine.c src/thru_math.c

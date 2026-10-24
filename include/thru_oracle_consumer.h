@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "thru_math.h"
 
 #define THRU_ORACLE_V2_FEED_MAGIC (0x54464545U)
 
@@ -18,7 +19,9 @@ typedef enum {
     THRU_CONSUMER_ERR_FEED_PAUSED = 3,
     THRU_CONSUMER_ERR_PRICE_ZERO = 4,
     THRU_CONSUMER_ERR_STALE = 5,
-    THRU_CONSUMER_ERR_CONFIDENCE_TOO_LOW = 6
+    THRU_CONSUMER_ERR_CONFIDENCE_TOO_LOW = 6,
+    THRU_CONSUMER_ERR_OUT_OF_BOUNDS = 7,
+    THRU_CONSUMER_ERR_CROSS_RATE_ZERO = 8
 } thru_consumer_status_t;
 
 typedef struct __attribute__((packed)) {
@@ -111,6 +114,83 @@ static inline thru_consumer_status_t thru_oracle_read_with_age(
     }
     *out_price = feed->price;
     *out_age_slots = (current_slot >= feed->publish_slot) ? (current_slot - feed->publish_slot) : 0;
+    return THRU_CONSUMER_OK;
+}
+
+static inline thru_consumer_status_t thru_oracle_read_price_bounded(
+    const thru_feed_account_view_t *feed,
+    uint64_t current_slot,
+    uint64_t max_staleness_slots,
+    uint64_t max_confidence_bps,
+    uint64_t min_price,
+    uint64_t max_price,
+    uint64_t *out_price
+) {
+    uint64_t price = 0;
+    thru_consumer_status_t st = thru_oracle_read_price(
+        feed, current_slot, max_staleness_slots, max_confidence_bps, &price
+    );
+    if (st != THRU_CONSUMER_OK) {
+        return st;
+    }
+    if ((min_price > 0 && price < min_price) || (max_price > 0 && price > max_price)) {
+        return THRU_CONSUMER_ERR_OUT_OF_BOUNDS;
+    }
+    *out_price = price;
+    return THRU_CONSUMER_OK;
+}
+
+static inline bool thru_oracle_is_valid(
+    const thru_feed_account_view_t *feed,
+    uint64_t current_slot,
+    uint64_t max_staleness_slots
+) {
+    if (!feed || feed->magic != THRU_ORACLE_V2_FEED_MAGIC || feed->version != 2 ||
+        feed->status != 1 || feed->price == 0) {
+        return false;
+    }
+    if (current_slot > feed->publish_slot &&
+        (current_slot - feed->publish_slot) > max_staleness_slots) {
+        return false;
+    }
+    return true;
+}
+
+static inline thru_consumer_status_t thru_oracle_read_cross_rate(
+    const thru_feed_account_view_t *base_feed,
+    const thru_feed_account_view_t *quote_feed,
+    uint64_t current_slot,
+    uint64_t max_staleness_slots,
+    uint64_t max_confidence_bps,
+    q64_t *out_price_q64,
+    uint64_t *out_conf_bps
+) {
+    if (!base_feed || !quote_feed || !out_price_q64) {
+        return THRU_CONSUMER_ERR_PRICE_ZERO;
+    }
+    uint64_t base_price = 0;
+    thru_consumer_status_t st_base = thru_oracle_read_price(
+        base_feed, current_slot, max_staleness_slots, max_confidence_bps, &base_price
+    );
+    if (st_base != THRU_CONSUMER_OK) return st_base;
+
+    uint64_t quote_price = 0;
+    thru_consumer_status_t st_quote = thru_oracle_read_price(
+        quote_feed, current_slot, max_staleness_slots, max_confidence_bps, &quote_price
+    );
+    if (st_quote != THRU_CONSUMER_OK) return st_quote;
+
+    if (quote_price == 0) {
+        return THRU_CONSUMER_ERR_CROSS_RATE_ZERO;
+    }
+
+    q64_t base_q64 = q64_from_int((int64_t)base_price);
+    q64_t quote_q64 = q64_from_int((int64_t)quote_price);
+    *out_price_q64 = q64_div(base_q64, quote_q64);
+
+    if (out_conf_bps) {
+        *out_conf_bps = base_feed->confidence_bps + quote_feed->confidence_bps;
+    }
     return THRU_CONSUMER_OK;
 }
 

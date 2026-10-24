@@ -66,6 +66,66 @@ test("OracleClient v2: getLatestPrice and calculateSafeValuation", async (t) => 
       return;
     }
 
+    if (req.url?.startsWith("/v2/updates/price/latest")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          slot: "1492000",
+          timestamp: 1729699200,
+          symbols: ["BTC/USD", "ETH/USD"],
+          count: 2,
+          binary: {
+            encoding: "hex",
+            data: ["45454654", "45454654"],
+            combinedHex: "4545465445454654",
+            totalSizeBytes: 176,
+            sha256: "feedbeef",
+          },
+          parsed: [
+            { symbol: "BTC/USD", price: 68000, confidence: 200, slot: 1492000 },
+            { symbol: "ETH/USD", price: 2500, confidence: 20, slot: 1492000 },
+          ],
+        })
+      );
+      return;
+    }
+
+    if (req.url?.startsWith("/v2/feeds/BTC/USD/benchmark")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          symbol: "BTC/USD",
+          symbolId: 1,
+          publishSlot: "1492000",
+          price: 68000.0,
+          priceRaw: "6800000000000",
+          confidenceBps: 20,
+          medianSourceTs: "1729699200",
+          flags: 0,
+          verified: true,
+          source: "archive_aggregate",
+        })
+      );
+      return;
+    }
+
+    if (req.url === "/v2/feeds/ETH/BTC") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          data: {
+            symbol: "ETH/BTC",
+            price: 0.03676,
+            confidence: 0.0001,
+            slot: 1492000,
+          },
+          derived: true,
+          formula: "ETH/USD / BTC/USD",
+        })
+      );
+      return;
+    }
+
     res.writeHead(404);
     res.end();
   });
@@ -118,6 +178,44 @@ test("OracleClient v2: getLatestPrice and calculateSafeValuation", async (t) => 
     assert.equal(att.symbol, "BTC/USD");
     assert.equal(att.wireSizeBytes, 88);
     assert.equal(att.binaryWireHex, "45454654");
+  });
+
+  await t.test("getLatestPriceUpdates fetches batched multi-feed updates", async () => {
+    const batch = await client.getLatestPriceUpdates(["BTC", "ETH"]);
+    assert.equal(batch.count, 2);
+    assert.equal(batch.binary.data.length, 2);
+    assert.equal(batch.binary.combinedHex, "4545465445454654");
+    assert.equal(batch.parsed.length, 2);
+  });
+
+  await t.test("getBenchmarkPrice queries historical verified price by slot", async () => {
+    const bench = await client.getBenchmarkPrice("BTC", 1492000);
+    assert.equal(bench.symbol, "BTC/USD");
+    assert.equal(bench.price, 68000.0);
+    assert.equal(bench.verified, true);
+  });
+
+  await t.test("getCrossRate returns derived pair price", async () => {
+    const cross = await client.getCrossRate("ETH", "BTC");
+    assert.equal(cross.derived, true);
+    assert.equal(cross.data.symbol, "ETH/BTC");
+    assert.equal(cross.data.price, 0.03676);
+  });
+
+  await t.test("calculatePerpMarkPrice calculates clamped delta and funding rate", () => {
+    const normal = client.calculatePerpMarkPrice(60000, 60100, 300);
+    assert.equal(normal.markPrice, 60100);
+    assert.equal(normal.isClamped, false);
+    assert.ok(normal.fundingRate > 0);
+
+    const clamped = client.calculatePerpMarkPrice(60000, 63000, 300);
+    assert.equal(clamped.markPrice, 61800);
+    assert.equal(clamped.isClamped, true);
+  });
+
+  await t.test("estimateComputeUnits produces deterministic gas estimates", () => {
+    assert.equal(client.estimateComputeUnits(1), 6000);
+    assert.equal(client.estimateComputeUnits(6), 18500);
   });
 
   server.close();

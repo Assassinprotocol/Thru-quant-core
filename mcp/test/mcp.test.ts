@@ -48,6 +48,23 @@ test("MCP Server Protocol & Tools", async (t) => {
       return;
     }
 
+    if (req.url?.includes("/v2/feeds/ETH/BTC")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          data: {
+            symbol: "ETH/BTC",
+            price: 0.03676,
+            confidence: 0.0001,
+            slot: 1492080,
+          },
+          derived: true,
+          formula: "ETH/USD / BTC/USD",
+        })
+      );
+      return;
+    }
+
     res.writeHead(404);
     res.end();
   });
@@ -76,13 +93,15 @@ test("MCP Server Protocol & Tools", async (t) => {
       params: {},
     });
     assert.equal(res.id, 2);
-    assert.equal(res.result.tools.length, 4);
+    assert.equal(res.result.tools.length, 6);
     const names = res.result.tools.map((tool: any) => tool.name);
     assert.deepEqual(names, [
       "read_oracle_feed",
       "get_historical_twap",
       "get_risk_signals",
       "verify_slot_provenance",
+      "get_perp_mark_price",
+      "get_cross_rate",
     ]);
   });
 
@@ -134,6 +153,41 @@ test("MCP Server Protocol & Tools", async (t) => {
     const data = JSON.parse(res.result.content[0].text);
     assert.equal(data.slot, 1492080);
     assert.equal(data.provenanceVerified, true);
+  });
+
+  await t.test("executes get_perp_mark_price tool call", async () => {
+    const res = await mcp.handleMessage({
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
+      params: {
+        name: "get_perp_mark_price",
+        arguments: { symbol: "BTC", orderbook_mid: 72000, max_deviation_bps: 300 },
+      },
+    });
+    assert.equal(res.id, 6);
+    const data = JSON.parse(res.result.content[0].text);
+    assert.equal(data.symbol, "BTC/USD");
+    assert.equal(data.indexPrice, 68420.5);
+    assert.equal(data.isClamped, true);
+    assert.ok(data.markPrice > 68420.5 && data.markPrice < 72000);
+  });
+
+  await t.test("executes get_cross_rate tool call", async () => {
+    const res = await mcp.handleMessage({
+      jsonrpc: "2.0",
+      id: 7,
+      method: "tools/call",
+      params: {
+        name: "get_cross_rate",
+        arguments: { base_symbol: "ETH", quote_symbol: "BTC" },
+      },
+    });
+    assert.equal(res.id, 7);
+    const data = JSON.parse(res.result.content[0].text);
+    assert.equal(data.symbol, "ETH/BTC");
+    assert.equal(data.price, 0.03676);
+    assert.equal(data.derived, true);
   });
 
   server.close();

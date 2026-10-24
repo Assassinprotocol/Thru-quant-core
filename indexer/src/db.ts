@@ -62,6 +62,12 @@ export class MemoryDatabase implements DatabaseClient {
     return history.slice(Math.max(0, history.length - limit));
   }
 
+  async getAggregateBySlot(symbolId: number, slot: bigint): Promise<FeedAggregateRecord | null> {
+    const key = `${symbolId}:${slot}`;
+    const rec = this.aggregates.get(key);
+    return rec ? { ...rec } : null;
+  }
+
   async insertRiskSignal(signal: RiskSignalRecord): Promise<void> {
     this.riskSignals.set(signal.symbolId, { ...signal, createdAt: new Date() });
   }
@@ -231,6 +237,34 @@ export class PgDatabase implements DatabaseClient {
       [symbolId, limit]
     );
     return res.rows.map((r: any) => Number(r.price)).reverse();
+  }
+
+  async getAggregateBySlot(symbolId: number, slot: bigint): Promise<FeedAggregateRecord | null> {
+    const res = await this.pool.query(
+      "SELECT * FROM feed_aggregates WHERE symbol_id = $1 AND publish_slot = $2 LIMIT 1",
+      [symbolId, slot.toString()]
+    );
+    if (res.rows.length === 0) return null;
+    const r = res.rows[0];
+    return {
+      symbolId: r.symbol_id,
+      symbol: r.symbol,
+      priceRaw: BigInt(r.price_raw),
+      price: Number(r.price),
+      confidenceBps: r.confidence_bps,
+      publishSlot: BigInt(r.publish_slot),
+      prevPublishSlot: BigInt(r.prev_publish_slot),
+      medianSourceTs: BigInt(r.median_source_ts),
+      contributorCount: r.contributor_count,
+      contributorMask: r.contributor_mask,
+      flags: r.flags,
+      isStale: r.is_stale,
+      isBigMove: r.is_big_move,
+      isLowConfidence: r.is_low_confidence,
+      hadOutlierRejected: r.had_outlier_rejected,
+      txSignature: r.tx_signature,
+      createdAt: r.created_at,
+    };
   }
 
   async insertRiskSignal(signal: RiskSignalRecord): Promise<void> {

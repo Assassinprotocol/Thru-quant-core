@@ -7,6 +7,8 @@
 #include "thru_math.h"
 #include "thru_oracle_consumer.h"
 #include "../examples/c_consumer/lending_liquidator.h"
+#include "../examples/c_consumer/perp_dex_consumer.h"
+#include "../examples/c_consumer/dual_oracle_guard.h"
 
 static thru_feed_account_view_t create_mock_feed(
     uint32_t symbol_id,
@@ -151,6 +153,130 @@ static void test_consumer_try_read_and_read_with_age(void) {
     printf("  [PASS] test_consumer_try_read_and_read_with_age\n");
 }
 
+static void test_consumer_perp_dex_clamping(void) {
+    uint64_t slot = 1500000;
+    thru_feed_account_view_t btc_feed = create_mock_feed(1, 60000, 10, slot, 1);
+
+    perp_market_params_t params = {
+        .orderbook_mid_price = 63000,
+        .max_clamping_deviation_bps = 300,
+        .damping_factor_bps = 10000,
+        .min_price_bound = 10000,
+        .max_price_bound = 100000
+    };
+
+    perp_pricing_result_t res;
+    memset(&res, 0, sizeof(res));
+
+    thru_consumer_status_t st = evaluate_perp_mark_and_funding(
+        &params, &btc_feed, slot, 60, 50, &res
+    );
+    assert(st == THRU_CONSUMER_OK);
+    assert(res.oracle_status == THRU_CONSUMER_OK);
+    assert(res.index_price == 60000);
+    assert(res.mark_price == 61800);
+    assert(res.is_clamped == true);
+    assert(res.funding_rate_q64 > Q64_ZERO);
+
+    params.orderbook_mid_price = 60100;
+    st = evaluate_perp_mark_and_funding(&params, &btc_feed, slot, 60, 50, &res);
+    assert(st == THRU_CONSUMER_OK);
+    assert(res.mark_price == 60100);
+    assert(res.is_clamped == false);
+
+    params.orderbook_mid_price = 55000;
+    st = evaluate_perp_mark_and_funding(&params, &btc_feed, slot, 60, 50, &res);
+    assert(st == THRU_CONSUMER_OK);
+    assert(res.mark_price == 58200);
+    assert(res.is_clamped == true);
+    assert(res.funding_rate_q64 < Q64_ZERO);
+
+    printf("  [PASS] test_consumer_perp_dex_clamping (60k index -> 61.8k clamped mark, 60.1k normal)\n");
+}
+
+static void test_consumer_perp_dex_bounded_rejection(void) {
+    uint64_t slot = 1500000;
+    thru_feed_account_view_t btc_feed = create_mock_feed(1, 85000, 10, slot, 1);
+
+    perp_market_params_t params = {
+        .orderbook_mid_price = 85000,
+        .max_clamping_deviation_bps = 300,
+        .damping_factor_bps = 10000,
+        .min_price_bound = 20000,
+        .max_price_bound = 80000
+    };
+
+    perp_pricing_result_t res;
+    memset(&res, 0, sizeof(res));
+
+    thru_consumer_status_t st = evaluate_perp_mark_and_funding(
+        &params, &btc_feed, slot, 60, 50, &res
+    );
+    assert(st == THRU_CONSUMER_ERR_OUT_OF_BOUNDS);
+    assert(res.oracle_status == THRU_CONSUMER_ERR_OUT_OF_BOUNDS);
+
+    printf("  [PASS] test_consumer_perp_dex_bounded_rejection (85k exceeds 80k bound)\n");
+}
+
+static void test_consumer_dual_oracle_guard(void) {
+    uint64_t slot = 1500000;
+    thru_feed_account_view_t pri_feed = create_mock_feed(1, 60000, 10, slot, 1);
+    thru_feed_account_view_t sec_feed = create_mock_feed(1, 60060, 10, slot, 1);
+
+    dual_oracle_config_t cfg = {
+        .max_staleness_slots = 60,
+        .max_confidence_bps = 50,
+        .max_divergence_bps = 200,
+        .min_price_bound = 10000,
+        .max_price_bound = 100000
+    };
+
+    dual_oracle_result_t res;
+    memset(&res, 0, sizeof(res));
+
+    dual_oracle_resolution_t r = evaluate_dual_oracle_price(
+        &cfg, &pri_feed, &sec_feed, slot, &res
+    );
+    assert(r == DUAL_ORACLE_RESOLVED_PRIMARY);
+    assert(res.resolved_price == 60000);
+    assert(res.divergence_bps == 10);
+
+    thru_feed_account_view_t diverging_sec = create_mock_feed(1, 62000, 10, slot, 1);
+    r = evaluate_dual_oracle_price(&cfg, &pri_feed, &diverging_sec, slot, &res);
+    assert(r == DUAL_ORACLE_REVERT_DIVERGENCE);
+
+    thru_feed_account_view_t stale_pri = create_mock_feed(1, 60000, 10, slot - 100, 1);
+    r = evaluate_dual_oracle_price(&cfg, &stale_pri, &sec_feed, slot, &res);
+    assert(r == DUAL_ORACLE_RESOLVED_SECONDARY_FALLBACK);
+    assert(res.resolved_price == 60060);
+
+    thru_feed_account_view_t stale_sec = create_mock_feed(1, 60060, 10, slot - 100, 1);
+    r = evaluate_dual_oracle_price(&cfg, &stale_pri, &stale_sec, slot, &res);
+    assert(r == DUAL_ORACLE_REVERT_UNAVAILABLE);
+
+    printf("  [PASS] test_consumer_dual_oracle_guard (primary, divergence breaker, and stale fallback)\n");
+}
+
+static void test_consumer_cross_rate_synthesis(void) {
+    uint64_t slot = 1500000;
+    thru_feed_account_view_t eth_feed = create_mock_feed(2, 2500, 10, slot, 1);
+    thru_feed_account_view_t btc_feed = create_mock_feed(1, 50000, 15, slot, 1);
+
+    q64_t cross_q64 = 0;
+    uint64_t conf_bps = 0;
+    thru_consumer_status_t st = thru_oracle_read_cross_rate(
+        &eth_feed, &btc_feed, slot, 60, 50, &cross_q64, &conf_bps
+    );
+    assert(st == THRU_CONSUMER_OK);
+    assert(conf_bps == 25);
+
+    q64_t expected = q64_from_ratio(5, 100);
+    q64_t diff = (cross_q64 >= expected) ? (cross_q64 - expected) : (expected - cross_q64);
+    assert(diff < (Q64_ONE / 1000));
+
+    printf("  [PASS] test_consumer_cross_rate_synthesis (ETH/USD 2500 / BTC/USD 50000 = 0.05 ETH/BTC)\n");
+}
+
 int main(void) {
     printf("Running On-Chain C Reference Consumer Test Suite...\n");
     test_consumer_healthy_position();
@@ -158,6 +284,10 @@ int main(void) {
     test_consumer_stale_rejection();
     test_consumer_low_confidence_rejection();
     test_consumer_try_read_and_read_with_age();
+    test_consumer_perp_dex_clamping();
+    test_consumer_perp_dex_bounded_rejection();
+    test_consumer_dual_oracle_guard();
+    test_consumer_cross_rate_synthesis();
     printf("All C consumer tests passed successfully.\n");
     return 0;
 }

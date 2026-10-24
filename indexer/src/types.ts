@@ -64,6 +64,7 @@ export interface DatabaseClient {
   getSnapshot(symbolId: number): Promise<FeedSnapshotRecord | null>;
   listSnapshots(): Promise<FeedSnapshotRecord[]>;
   getRecentPrices(symbolId: number, limit: number): Promise<number[]>;
+  getAggregateBySlot(symbolId: number, slot: bigint): Promise<FeedAggregateRecord | null>;
   insertRiskSignal(signal: RiskSignalRecord): Promise<void>;
   getLatestRiskSignal(symbolId: number): Promise<RiskSignalRecord | null>;
 }

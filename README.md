@@ -52,7 +52,7 @@ flowchart TD
 | Layer | Component | Language / Runtime | Primary Scope |
 |---|---|:---:|---|
 | **Contract Core** | `src/thru_math.c`, `src/v2/` | C17 (RV64IMC) | Checked fixed-point arithmetic, median consensus, dynamic breakers |
-| **Consumer Kit** | `include/thru_oracle_consumer.h`, `examples/c_consumer/` | C17 (RV64IMC) | Zero-overhead consumer safety kit & reference lending liquidator |
+| **Consumer Kit** | `include/thru_oracle_consumer.h`, `examples/c_consumer/` | C17 (RV64IMC) | Zero-overhead safety kit, lending liquidator, perp DEX, & dual oracle guard |
 | **Publisher Engine** | `feeder/`, `cmd/api/` | Go 1.23+ | Multi-venue WebSocket ingestion, WAL replay, quorum dispatch |
 | **State Indexer** | `indexer/` | TypeScript / Node | Event ingestion, continuous checkpoint recovery, rolling volatility |
 | **API Gateway** | `gateway/` | Fastify / TypeScript | High-throughput REST & SSE endpoints with Prometheus telemetry |
@@ -92,8 +92,11 @@ curl -s http://localhost:8080/v2/feeds/BTC | jq .
 # Query canonical TWAP (15m window)
 curl -s http://localhost:8080/v2/feeds/BTC/twap | jq .
 
-# Fetch 88-byte Little-Endian binary wire attestation
-curl -s http://localhost:8080/v2/feeds/BTC/attestation | jq .
+# Fetch batched multi-feed binary wire attestation
+curl -s "http://localhost:8080/v2/updates/price/latest?symbols=BTC,ETH" | jq .
+
+# Query triangular cross-rate synthesis (ETH/BTC derived from USD feeds)
+curl -s http://localhost:8080/v2/feeds/ETH/BTC | jq .
 
 # Inspect Prometheus operator and price metrics
 curl -s http://localhost:8080/metrics | grep thru_oracle

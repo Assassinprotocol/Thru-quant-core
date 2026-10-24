@@ -15,22 +15,17 @@ export function Playground({ selectedFeed }: PlaygroundProps) {
   const baseSymbol = selectedFeed.base;
 
   const snippets = {
-    c: `// Zero-Copy Direct Memory Cast in C (On-Chain / Fast Ingestion)
-#include "thru_quant_core.h"
+    c: `// Zero-Copy On-Chain Oracle v2 Consumer in C (RV64IMC)
+#include "thru_oracle_consumer.h"
 
-int evaluate_price(const uint8_t *raw_account_data, size_t len) {
-    if (len < sizeof(thru_oracle_entry_t)) return -1;
-    
-    // Direct zero-allocation cast (~3.5µs decode latency)
-    const thru_oracle_entry_t *entry = (const thru_oracle_entry_t *)raw_account_data;
-    if (entry->magic != THRU_ORACLE_MAGIC) return -2;
+int evaluate_position(const thru_feed_account_view_t *feed, uint64_t current_slot) {
+    uint64_t price = 0;
+    thru_consumer_status_t st = thru_oracle_read_price_bounded(
+        feed, current_slot, 60, 50, 1000, 1000000, &price
+    );
+    if (st != THRU_CONSUMER_OK) return (int)st;
 
-    double price = (double)entry->price_q64 / 18446744073709551616.0;
-    double conf  = (double)entry->conf_q64 / 18446744073709551616.0;
-    
-    // Check flags for BIG_MOVE or LOW_CONFIDENCE
-    if (entry->flags & THRU_FLAG_CIRCUIT_BREAKER) return -3;
-    
+    if (thru_oracle_is_big_move(feed)) return -1;
     return 0;
 }`,
     rust: `// Zero-Copy On-Chain CPI Deserialization in Rust
