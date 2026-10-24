@@ -40,33 +40,54 @@ export default function Home() {
 
         if (feedsRes.status === "fulfilled" && feedsRes.value.ok && isSubscribed) {
           const data = await feedsRes.value.json();
-          if (Array.isArray(data.feeds) && data.feeds.length > 0) {
+          const feedList: any[] = Array.isArray(data.data) ? data.data : (Array.isArray(data.feeds) ? data.feeds : []);
+          if (feedList.length > 0 && isSubscribed) {
             setFeeds((prev) =>
               prev.map((feed) => {
-                const live = data.feeds.find((f: any) => f.symbol === feed.symbol || f.symbol === feed.symbol.replace("/", ""));
+                const live = feedList.find((f: any) => f.symbol === feed.symbol || f.symbol === feed.symbol.replace("/", ""));
                 if (!live) return feed;
                 const newPrice = Number(live.price);
-                const newConf = Number(live.confidence);
+                const newConf = Number(
+                  live.confidence !== undefined
+                    ? live.confidence
+                    : (live.confidenceBps !== undefined ? (newPrice * live.confidenceBps) / 10000 : 0)
+                );
+                const newSlot = Number(live.slot ?? live.publishSlot ?? feed.slot);
+                const flags = live.flags ?? 0;
+                const flagsList = Array.isArray(live.flagsList)
+                  ? live.flagsList
+                  : [
+                      ...(flags === 0 ? ["VALID"] : []),
+                      ...((flags & 1) ? ["STALE"] : []),
+                      ...((flags & 2) ? ["BIG_MOVE"] : []),
+                      ...((flags & 4) ? ["LOW_CONFIDENCE"] : []),
+                      ...((flags & 8) ? ["OUTLIER_REJECTED"] : []),
+                    ];
                 return {
                   ...feed,
                   price: newPrice,
                   confidence: newConf,
-                  slot: live.slot,
-                  flags: live.flags ?? 0,
-                  flagsList: live.flagsList ?? ["VALID"],
+                  slot: newSlot,
+                  flags,
+                  flagsList,
                   history: [
                     ...feed.history.slice(1),
-                    { slot: live.slot, timestamp: Math.floor(Date.now() / 1000), price: newPrice, confidence: newConf },
+                    { slot: newSlot, timestamp: Math.floor(Date.now() / 1000), price: newPrice, confidence: newConf },
                   ],
                 };
               })
             );
 
+            const maxSlot = feedList.reduce((max: number, f: any) => {
+              const s = Number(f.slot ?? f.publishSlot ?? 0);
+              return s > max ? s : max;
+            }, 0);
+
             setStatus((s) => ({
               ...s,
               connected: true,
               mode: "POLLING",
-              slot: data.slot || s.slot + 1,
+              slot: maxSlot || s.slot + 1,
               lastUpdateTs: Math.floor(Date.now() / 1000),
             }));
 

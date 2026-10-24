@@ -103,11 +103,20 @@ export function calculateTwap(prices: number[]): TwapResult {
   }
   const sum = prices.reduce((acc, p) => acc + p, 0);
   const avg = sum / prices.length;
-  const decimals = avg < 2 ? 6 : 2;
+  let decimals = 2;
+  if (avg > 0 && avg < 2) {
+    decimals = Math.min(8, Math.max(6, -Math.floor(Math.log10(avg)) + 2));
+  }
+  let minPrice = prices[0];
+  let maxPrice = prices[0];
+  for (let i = 1; i < prices.length; i++) {
+    if (prices[i] < minPrice) minPrice = prices[i];
+    if (prices[i] > maxPrice) maxPrice = prices[i];
+  }
   return {
     twap: Number(avg.toFixed(decimals)),
     samples: prices.length,
-    minPrice: Math.min(...prices),
-    maxPrice: Math.max(...prices),
+    minPrice,
+    maxPrice,
   };
 }

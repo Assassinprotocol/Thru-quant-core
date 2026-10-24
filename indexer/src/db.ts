@@ -90,6 +90,9 @@ export class PgDatabase implements DatabaseClient {
     const pg = await import("pg");
     const Pool = pg.default?.Pool || (pg as any).Pool;
     this.pool = new Pool({ connectionString: this.connectionString });
+    this.pool.on("error", (err: any) => {
+      console.error("[PG:POOL:ERROR] Unexpected error on idle database client:", err.message);
+    });
   }
 
   async close(): Promise<void> {

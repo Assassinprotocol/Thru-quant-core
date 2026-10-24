@@ -44,8 +44,9 @@ dual_oracle_resolution_t evaluate_dual_oracle_price(
 
     if (pri_st == THRU_CONSUMER_OK) {
         if (sec_st == THRU_CONSUMER_OK && config->max_divergence_bps > 0 && pri_price > 0) {
+            __extension__ typedef unsigned __int128 u128_t;
             uint64_t diff = (pri_price >= sec_price) ? (pri_price - sec_price) : (sec_price - pri_price);
-            uint64_t div_bps = (diff * 10000ULL) / pri_price;
+            uint64_t div_bps = (uint64_t)(((u128_t)diff * 10000ULL) / pri_price);
             out_result->divergence_bps = div_bps;
             if (div_bps > config->max_divergence_bps) {
                 out_result->resolution = DUAL_ORACLE_REVERT_DIVERGENCE;

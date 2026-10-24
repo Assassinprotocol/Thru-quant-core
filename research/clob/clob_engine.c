@@ -3,7 +3,7 @@
 #include "clob_engine.h"
 
 static q64_t get_order_price(clob_order_t const *o) {
-    return (((q64_t)o->price_hi) << 64) | ((q64_t)o->price_lo);
+    return (q64_t)((((uq64_t)o->price_hi) << 64) | ((uq64_t)o->price_lo));
 }
 
 static void remove_bid_node(clob_state_t *state, int16_t idx) {
@@ -217,7 +217,7 @@ static void handle_place_limit(void const *instruction_data, ulong instruction_d
         tsdk_revert(CLOB_ERR_DATA_ACCESS_FAILED);
     }
 
-    q64_t in_price = (((q64_t)args->price_hi) << 64) | ((q64_t)args->price_lo);
+    q64_t in_price = (q64_t)((((uq64_t)args->price_hi) << 64) | ((uq64_t)args->price_lo));
     if (in_price <= 0) {
         tsdk_revert(CLOB_ERR_INVALID_PRICE);
     }

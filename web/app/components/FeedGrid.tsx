@@ -41,9 +41,10 @@ export function FeedGrid({ feeds, selectedSymbol, onSelectFeed }: FeedGridProps)
           <tbody className="divide-y divide-[#1e293b]/60">
             {feeds.map((feed) => {
               const isSelected = feed.symbol === selectedSymbol;
-              const hasBigMove = feed.flagsList.includes("BIG_MOVE");
-              const hasLowConf = feed.flagsList.includes("LOW_CONFIDENCE");
-              const hasStale = feed.flagsList.includes("STALE");
+              const flagsList = feed.flagsList || [];
+              const hasBigMove = flagsList.includes("BIG_MOVE");
+              const hasLowConf = flagsList.includes("LOW_CONFIDENCE");
+              const hasStale = flagsList.includes("STALE");
 
               return (
                 <tr

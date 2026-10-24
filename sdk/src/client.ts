@@ -200,17 +200,31 @@ export class OracleClient {
         throw new Error(`Gateway v2 returned status ${res.status}`);
       }
 
-      const data = (await res.json()) as any;
+      const raw = (await res.json()) as any;
+      const data = raw.data ?? raw;
+      const price = Number(data.price);
+      const conf = Number(
+        data.confidence !== undefined
+          ? data.confidence
+          : (data.confidenceBps !== undefined ? (price * data.confidenceBps) / 10000 : 0)
+      );
+      const slot = Number(data.slot ?? data.publishSlot ?? 0);
+      const ts = Number(data.timestamp ?? data.medianSourceTs ?? Math.floor(Date.now() / 1000));
+      const flags = Number(data.flags ?? 0);
+      const flagsList = Array.isArray(data.flagsList)
+        ? data.flagsList
+        : (flags === 0 ? ["VALID"] : []);
+
       return {
         symbol: data.symbol,
-        price: Number(data.price),
-        confidence: Number(data.confidence),
-        slot: Number(data.slot),
-        timestamp: Number(data.timestamp),
-        flags: Number(data.flags ?? 0),
-        flagsList: Array.isArray(data.flagsList) ? data.flagsList : ["VALID"],
-        publishersCount: data.publishersCount,
-        totalPublishers: data.totalPublishers,
+        price,
+        confidence: conf,
+        slot,
+        timestamp: ts,
+        flags,
+        flagsList,
+        publishersCount: data.publishersCount ?? data.contributorCount,
+        totalPublishers: data.totalPublishers ?? data.contributorCount,
       };
     } catch (v2Err: any) {
       if (v2Err.message?.includes("stale")) throw v2Err;
@@ -263,13 +277,20 @@ export class OracleClient {
             const dataLine = block.split("\n").find((l) => l.startsWith("data: "));
             if (dataLine) {
               try {
-                const parsed = JSON.parse(dataLine.slice(6));
+                const raw = JSON.parse(dataLine.slice(6));
+                const parsed = raw.data ?? raw;
+                const price = Number(parsed.price);
+                const conf = Number(
+                  parsed.confidence !== undefined
+                    ? parsed.confidence
+                    : (parsed.confidenceBps !== undefined ? (price * parsed.confidenceBps) / 10000 : 0)
+                );
                 callback({
                   symbol: parsed.symbol,
-                  price: Number(parsed.price),
-                  confidence: Number(parsed.confidence),
-                  slot: Number(parsed.slot),
-                  timestamp: Number(parsed.timestamp),
+                  price,
+                  confidence: conf,
+                  slot: Number(parsed.slot ?? parsed.publishSlot ?? 0),
+                  timestamp: Number(parsed.timestamp ?? parsed.medianSourceTs ?? Math.floor(Date.now() / 1000)),
                   flags: Number(parsed.flags ?? 0),
                   flagsList: Array.isArray(parsed.flagsList) ? parsed.flagsList : ["VALID"],
                 });
@@ -366,6 +387,7 @@ export class OracleClient {
     timestamp: number;
     symbols: string[];
     count: number;
+    unresolved?: string[];
     binary: {
       encoding: string;
       data: string[];
@@ -375,6 +397,9 @@ export class OracleClient {
     };
     parsed: LatestPriceResult[];
   }> {
+    if (!symbols || symbols.length === 0) {
+      throw new Error("symbols array must contain at least one symbol");
+    }
     const symList = symbols.map(s => s.trim().toUpperCase()).join(",");
     const res = await fetch(`${this.daemonUrl}/v2/updates/price/latest?symbols=${encodeURIComponent(symList)}`, {
       signal: AbortSignal.timeout(this.timeoutMs),
@@ -382,7 +407,39 @@ export class OracleClient {
     if (!res.ok) {
       throw new Error(`Failed to fetch batched price updates: HTTP ${res.status}`);
     }
-    return (await res.json()) as any;
+    const json = (await res.json()) as any;
+    const parsed: LatestPriceResult[] = (json.parsed || []).map((item: any) => {
+      const price = Number(item.price);
+      const conf = Number(
+        item.confidence !== undefined
+          ? item.confidence
+          : (item.confidenceBps !== undefined ? (price * item.confidenceBps) / 10000 : 0)
+      );
+      const flags = Number(item.flags ?? 0);
+      const flagsList = Array.isArray(item.flagsList)
+        ? item.flagsList
+        : (flags === 0 ? ["VALID"] : []);
+      return {
+        symbol: item.symbol,
+        price,
+        confidence: conf,
+        slot: Number(item.slot ?? item.publishSlot ?? 0),
+        timestamp: Number(item.timestamp ?? item.medianSourceTs ?? Math.floor(Date.now() / 1000)),
+        flags,
+        flagsList,
+        publishersCount: item.publishersCount ?? item.contributorCount,
+        totalPublishers: item.totalPublishers ?? item.contributorCount,
+      };
+    });
+    return {
+      slot: String(json.slot),
+      timestamp: Number(json.timestamp),
+      symbols: json.symbols || [],
+      count: Number(json.count || parsed.length),
+      unresolved: json.unresolved,
+      binary: json.binary,
+      parsed,
+    };
   }
 
   async getBenchmarkPrice(
@@ -400,9 +457,13 @@ export class OracleClient {
     verified: boolean;
     source: string;
   }> {
+    const slotStr = String(slot).trim();
+    if (!/^\d+$/.test(slotStr)) {
+      throw new Error(`Invalid slot parameter: ${slot}`);
+    }
     const cleanSym = symbol.trim().toUpperCase();
     const encoded = cleanSym.includes("/") ? cleanSym : `${cleanSym}/USD`;
-    const res = await fetch(`${this.daemonUrl}/v2/feeds/${encoded}/benchmark?slot=${slot}`, {
+    const res = await fetch(`${this.daemonUrl}/v2/feeds/${encoded}/benchmark?slot=${slotStr}`, {
       signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (!res.ok) {
@@ -421,13 +482,43 @@ export class OracleClient {
   }> {
     const base = baseSymbol.trim().toUpperCase();
     const quote = quoteSymbol.trim().toUpperCase();
+    if (base === quote) {
+      throw new Error("Base and quote symbols must be distinct");
+    }
     const res = await fetch(`${this.daemonUrl}/v2/feeds/${base}/${quote}`, {
       signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (!res.ok) {
       throw new Error(`Failed to fetch cross rate ${base}/${quote}: HTTP ${res.status}`);
     }
-    return (await res.json()) as any;
+    const json = (await res.json()) as any;
+    const rawData = json.data ?? json;
+    const price = Number(rawData.price);
+    const conf = Number(
+      rawData.confidence !== undefined
+        ? rawData.confidence
+        : (rawData.confidenceBps !== undefined ? (price * rawData.confidenceBps) / 10000 : 0)
+    );
+    const flags = Number(rawData.flags ?? 0);
+    const flagsList = Array.isArray(rawData.flagsList)
+      ? rawData.flagsList
+      : (flags === 0 ? ["VALID"] : []);
+
+    return {
+      data: {
+        symbol: rawData.symbol,
+        price,
+        confidence: conf,
+        slot: Number(rawData.slot ?? rawData.publishSlot ?? 0),
+        timestamp: Number(rawData.timestamp ?? rawData.medianSourceTs ?? Math.floor(Date.now() / 1000)),
+        flags,
+        flagsList,
+        publishersCount: rawData.publishersCount ?? rawData.contributorCount,
+        totalPublishers: rawData.totalPublishers ?? rawData.contributorCount,
+      },
+      derived: Boolean(json.derived ?? true),
+      formula: String(json.formula ?? `${base}/USD / ${quote}/USD`),
+    };
   }
 
   calculatePerpMarkPrice(
@@ -440,8 +531,9 @@ export class OracleClient {
     fundingRate: number;
     isClamped: boolean;
   } {
-    if (indexPrice <= 0) {
-      return { markPrice: 0, indexPrice: 0, fundingRate: 0, isClamped: false };
+    if (!Number.isFinite(indexPrice) || indexPrice <= 0 || !Number.isFinite(orderBookMedian) || orderBookMedian <= 0) {
+      const safeIndex = Number.isFinite(indexPrice) && indexPrice > 0 ? indexPrice : 0;
+      return { markPrice: safeIndex, indexPrice: safeIndex, fundingRate: 0, isClamped: false };
     }
     const maxDelta = (indexPrice * maxDeviationBps) / 10000;
     const rawDelta = orderBookMedian - indexPrice;

@@ -47,24 +47,11 @@ liquidation_eval_result_t evaluate_loan_liquidation(
         return LIQUIDATION_EVAL_HEALTHY;
     }
 
-    q64_t col_amt_q64 = q64_from_int((int64_t)position->collateral_amount);
-    q64_t col_prc_q64 = q64_from_int((int64_t)col_price);
-    q64_t col_val = q64_mul(col_amt_q64, col_prc_q64);
+    q64_t col_to_debt = q64_from_ratio((int64_t)position->collateral_amount, (int64_t)position->debt_amount);
+    q64_t price_ratio = q64_from_ratio((int64_t)col_price, (int64_t)debt_price);
+    q64_t ltv = q64_from_ratio((int64_t)position->liquidation_threshold_bps, 10000);
 
-    q64_t ltv_q64 = q64_from_ratio((int64_t)position->liquidation_threshold_bps, 10000);
-    q64_t discounted_col = q64_mul(col_val, ltv_q64);
-
-    q64_t debt_amt_q64 = q64_from_int((int64_t)position->debt_amount);
-    q64_t debt_prc_q64 = q64_from_int((int64_t)debt_price);
-    q64_t debt_val = q64_mul(debt_amt_q64, debt_prc_q64);
-
-    if (debt_val == 0) {
-        *out_health_factor = Q64_MAX;
-        if (out_oracle_status) *out_oracle_status = THRU_CONSUMER_OK;
-        return LIQUIDATION_EVAL_HEALTHY;
-    }
-
-    q64_t hf = q64_div(discounted_col, debt_val);
+    q64_t hf = q64_mul(q64_mul(col_to_debt, price_ratio), ltv);
     *out_health_factor = hf;
     if (out_oracle_status) *out_oracle_status = THRU_CONSUMER_OK;
 

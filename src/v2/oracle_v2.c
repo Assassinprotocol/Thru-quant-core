@@ -394,7 +394,7 @@ static void handle_aggregate(const void *data, ulong sz) {
         const submission_account_data_t *sub = (const submission_account_data_t *)tsdk_get_account_data_ptr(sub_acc_idx);
         if (sub->magic != ORACLE_V2_SUBMISSION_MAGIC) continue;
         if (memcmp(sub->publisher_pubkey, reg->publishers[i].pubkey, 32) != 0) continue;
-        if (cur_slot > sub->publish_slot && (cur_slot - sub->publish_slot) > feed_cfg->max_staleness_slots) continue;
+        if (sub->publish_slot > cur_slot || (cur_slot - sub->publish_slot) > feed_cfg->max_staleness_slots) continue;
 
         for (uint32_t q = 0; q < sub->quote_count; q++) {
             if (sub->quotes[q].symbol_id == args->symbol_id && sub->quotes[q].price > 0) {

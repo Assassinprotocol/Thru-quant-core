@@ -21,7 +21,9 @@ typedef enum {
     THRU_CONSUMER_ERR_STALE = 5,
     THRU_CONSUMER_ERR_CONFIDENCE_TOO_LOW = 6,
     THRU_CONSUMER_ERR_OUT_OF_BOUNDS = 7,
-    THRU_CONSUMER_ERR_CROSS_RATE_ZERO = 8
+    THRU_CONSUMER_ERR_CROSS_RATE_ZERO = 8,
+    THRU_CONSUMER_ERR_FUTURE_SLOT = 9,
+    THRU_CONSUMER_ERR_INVALID_BOUNDS = 10
 } thru_consumer_status_t;
 
 typedef struct __attribute__((packed)) {
@@ -66,8 +68,10 @@ static inline thru_consumer_status_t thru_oracle_read_price(
     if (feed->price == 0) {
         return THRU_CONSUMER_ERR_PRICE_ZERO;
     }
-    if (current_slot > feed->publish_slot &&
-        (current_slot - feed->publish_slot) > max_staleness_slots) {
+    if (feed->publish_slot > current_slot) {
+        return THRU_CONSUMER_ERR_FUTURE_SLOT;
+    }
+    if ((current_slot - feed->publish_slot) > max_staleness_slots) {
         return THRU_CONSUMER_ERR_STALE;
     }
     if (max_confidence_bps > 0 && feed->confidence_bps > max_confidence_bps) {
@@ -112,8 +116,11 @@ static inline thru_consumer_status_t thru_oracle_read_with_age(
     if (feed->status != 1 || feed->price == 0) {
         return THRU_CONSUMER_ERR_PRICE_ZERO;
     }
+    if (feed->publish_slot > current_slot) {
+        return THRU_CONSUMER_ERR_FUTURE_SLOT;
+    }
     *out_price = feed->price;
-    *out_age_slots = (current_slot >= feed->publish_slot) ? (current_slot - feed->publish_slot) : 0;
+    *out_age_slots = current_slot - feed->publish_slot;
     return THRU_CONSUMER_OK;
 }
 
@@ -126,6 +133,9 @@ static inline thru_consumer_status_t thru_oracle_read_price_bounded(
     uint64_t max_price,
     uint64_t *out_price
 ) {
+    if (min_price > 0 && max_price > 0 && min_price > max_price) {
+        return THRU_CONSUMER_ERR_INVALID_BOUNDS;
+    }
     uint64_t price = 0;
     thru_consumer_status_t st = thru_oracle_read_price(
         feed, current_slot, max_staleness_slots, max_confidence_bps, &price
@@ -149,8 +159,10 @@ static inline bool thru_oracle_is_valid(
         feed->status != 1 || feed->price == 0) {
         return false;
     }
-    if (current_slot > feed->publish_slot &&
-        (current_slot - feed->publish_slot) > max_staleness_slots) {
+    if (feed->publish_slot > current_slot) {
+        return false;
+    }
+    if ((current_slot - feed->publish_slot) > max_staleness_slots) {
         return false;
     }
     return true;
@@ -184,9 +196,7 @@ static inline thru_consumer_status_t thru_oracle_read_cross_rate(
         return THRU_CONSUMER_ERR_CROSS_RATE_ZERO;
     }
 
-    q64_t base_q64 = q64_from_int((int64_t)base_price);
-    q64_t quote_q64 = q64_from_int((int64_t)quote_price);
-    *out_price_q64 = q64_div(base_q64, quote_q64);
+    *out_price_q64 = q64_from_ratio((int64_t)base_price, (int64_t)quote_price);
 
     if (out_conf_bps) {
         *out_conf_bps = base_feed->confidence_bps + quote_feed->confidence_bps;

@@ -182,7 +182,11 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
           const baseSnap = await db.getSnapshot(baseId);
           const quoteSnap = await db.getSnapshot(quoteId);
           if (baseSnap && quoteSnap && quoteSnap.price > 0) {
-            const crossPrice = Number((baseSnap.price / quoteSnap.price).toFixed(8));
+            const rawRatio = baseSnap.price / quoteSnap.price;
+            let crossPrice = Number(rawRatio.toFixed(8));
+            if (crossPrice === 0 && rawRatio > 0) {
+              crossPrice = Number(rawRatio.toPrecision(8));
+            }
             const crossConfBps = baseSnap.confidenceBps + quoteSnap.confidenceBps;
             const confFraction = crossConfBps / 10000;
             const minSlot = (baseSnap.publishSlot < quoteSnap.publishSlot ? baseSnap.publishSlot : quoteSnap.publishSlot).toString();
@@ -190,12 +194,14 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
             const medianTs = baseSnap.medianSourceTs < quoteSnap.medianSourceTs ? baseSnap.medianSourceTs : quoteSnap.medianSourceTs;
             const ageSeconds = Math.max(0, nowTs - Number(medianTs));
             const isStale = (baseSnap.flags & 1) !== 0 || (quoteSnap.flags & 1) !== 0 || ageSeconds > 60;
+            const rawScaled = Math.round(crossPrice * 1e8);
+            const priceRaw = (rawScaled > 0 ? BigInt(rawScaled) : 1n).toString();
 
             const derived: FeedResponse = {
               symbolId: (baseId * 100) + quoteId,
               symbol: `${parts[0].toUpperCase()}/${parts[1].toUpperCase()}`,
               price: crossPrice,
-              priceRaw: BigInt(Math.round(crossPrice * 1e8)).toString(),
+              priceRaw,
               confidenceBps: crossConfBps,
               confidenceLowerBound: Number((crossPrice * (1 - confFraction)).toFixed(8)),
               confidenceUpperBound: Number((crossPrice * (1 + confFraction)).toFixed(8)),
@@ -248,10 +254,11 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
     const symbolId = resolveSymbolId(symbolParam);
     if (symbolId === undefined) {
       reply.status(404);
-      return { error: `Symbol not found: ${symbolParam}` };
+      return { error: `Symbol not found: ${symbolParam}`, code: "ORACLE_FEED_NOT_FOUND" };
     }
 
-    const limit = Math.min(100, Math.max(1, parseInt(limitQuery || "20", 10)));
+    const rawLimit = parseInt(limitQuery || "20", 10);
+    const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 20;
     const prices = await db.getRecentPrices(symbolId, limit);
 
     return {
@@ -277,7 +284,8 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
       return { error: `Symbol not found: ${symbolParam}`, code: "ORACLE_FEED_NOT_FOUND" };
     }
 
-    const limit = Math.min(100, Math.max(1, parseInt(limitQuery || "30", 10)));
+    const rawTwapLimit = parseInt(limitQuery || "30", 10);
+    const limit = Number.isFinite(rawTwapLimit) ? Math.min(100, Math.max(1, rawTwapLimit)) : 30;
     const prices = await db.getRecentPrices(symbolId, limit);
     const snapshot = await db.getSnapshot(symbolId);
 
@@ -374,6 +382,16 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
       return { error: "No matching price feeds found for updates", code: "ORACLE_NO_FEEDS" };
     }
 
+    const unresolved: string[] = [];
+    if (targetSymbols.length > 0) {
+      for (const sym of targetSymbols) {
+        const id = resolveSymbolId(sym);
+        if (id === undefined || !snapshots.find(s => s.symbolId === id)) {
+          unresolved.push(sym);
+        }
+      }
+    }
+
     const binaryData: string[] = [];
     const combinedBuffers: Uint8Array[] = [];
     for (const s of selected) {
@@ -402,6 +420,7 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
       timestamp: Math.floor(Date.now() / 1000),
       symbols: selected.map(s => s.symbol),
       count: selected.length,
+      unresolved,
       binary: {
         encoding: "hex",
         data: binaryData,
@@ -419,9 +438,9 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
       reply.status(404);
       return { error: `Symbol not found: ${symbolParam}`, code: "ORACLE_FEED_NOT_FOUND" };
     }
-    if (!slotQuery) {
+    if (!slotQuery || !/^\d+$/.test(slotQuery.trim())) {
       reply.status(400);
-      return { error: "Missing required query parameter: slot", code: "ORACLE_INVALID_PARAMS" };
+      return { error: `Invalid slot parameter: ${slotQuery}`, code: "ORACLE_INVALID_SLOT" };
     }
 
     const targetSlot = BigInt(slotQuery);
@@ -475,6 +494,10 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
   });
 
   app.get("/v2/updates/price/:slot", async (req: FastifyRequest<{ Params: { slot: string }; Querystring: { symbol?: string } }>, reply: FastifyReply) => {
+    if (!/^\d+$/.test(req.params.slot.trim())) {
+      reply.status(400);
+      return { error: `Invalid slot parameter: ${req.params.slot}`, code: "ORACLE_INVALID_SLOT" };
+    }
     const symbol = req.query.symbol || "BTC";
     return handleGetBenchmark(symbol, req.params.slot, reply);
   });
@@ -483,7 +506,7 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
     const symbolId = resolveSymbolId(symbolParam);
     if (symbolId === undefined) {
       reply.status(404);
-      return { error: `Symbol not found: ${symbolParam}` };
+      return { error: `Symbol not found: ${symbolParam}`, code: "ORACLE_FEED_NOT_FOUND" };
     }
 
     reply.raw.setHeader("Content-Type", "text/event-stream");
@@ -540,6 +563,10 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
 
   app.get("/v2/provenance/:slot", async (req: FastifyRequest<{ Params: { slot: string } }>, reply: FastifyReply) => {
     const slot = req.params.slot;
+    if (!/^\d+$/.test(slot.trim())) {
+      reply.status(400);
+      return { error: `Invalid slot parameter: ${slot}`, code: "ORACLE_INVALID_SLOT" };
+    }
     const snapshots = await db.listSnapshots();
 
     const matched = snapshots.filter((s) => s.publishSlot.toString() === slot);
@@ -608,8 +635,9 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
     ];
 
     for (const s of snapshots) {
-      const sym = s.symbol.replace("/", "_");
-      lines.push(`thru_oracle_v2_price{symbol="${sym}"} ${s.price}`);
+      const sym = s.symbol.replace(/["\\\n\r]/g, "").replace(/\//g, "_");
+      const price = Number.isFinite(s.price) ? s.price : 0;
+      lines.push(`thru_oracle_v2_price{symbol="${sym}"} ${price}`);
     }
 
     lines.push(
@@ -617,8 +645,9 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
       "# TYPE thru_oracle_v2_confidence_bps gauge"
     );
     for (const s of snapshots) {
-      const sym = s.symbol.replace("/", "_");
-      lines.push(`thru_oracle_v2_confidence_bps{symbol="${sym}"} ${s.confidenceBps}`);
+      const sym = s.symbol.replace(/["\\\n\r]/g, "").replace(/\//g, "_");
+      const conf = Number.isFinite(s.confidenceBps) ? s.confidenceBps : 0;
+      lines.push(`thru_oracle_v2_confidence_bps{symbol="${sym}"} ${conf}`);
     }
 
     lines.push(
@@ -626,8 +655,9 @@ export function registerRoutes(app: FastifyInstance, db: DatabaseClient) {
       "# TYPE thru_oracle_v2_flags gauge"
     );
     for (const s of snapshots) {
-      const sym = s.symbol.replace("/", "_");
-      lines.push(`thru_oracle_v2_flags{symbol="${sym}"} ${s.flags}`);
+      const sym = s.symbol.replace(/["\\\n\r]/g, "").replace(/\//g, "_");
+      const flags = Number.isFinite(s.flags) ? s.flags : 0;
+      lines.push(`thru_oracle_v2_flags{symbol="${sym}"} ${flags}`);
     }
 
     reply.header("Content-Type", "text/plain; version=0.0.4");

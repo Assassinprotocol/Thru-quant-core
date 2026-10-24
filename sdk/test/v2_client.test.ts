@@ -30,6 +30,27 @@ test("OracleClient v2: getLatestPrice and calculateSafeValuation", async (t) => 
       return;
     }
 
+    if (req.url === "/v2/feeds/ETH/USD") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          data: {
+            symbolId: 2,
+            symbol: "ETH/USD",
+            price: 2500,
+            priceRaw: "250000000000",
+            confidenceBps: 10,
+            publishSlot: "1492000",
+            prevPublishSlot: "1491999",
+            medianSourceTs: "1729699200",
+            contributorCount: 6,
+            flags: 0,
+          },
+        })
+      );
+      return;
+    }
+
     if (req.url?.startsWith("/v2/feeds/BTC/USD/twap")) {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
@@ -143,6 +164,15 @@ test("OracleClient v2: getLatestPrice and calculateSafeValuation", async (t) => 
     assert.deepEqual(feed.flagsList, ["VALID"]);
   });
 
+  await t.test("getLatestPrice resolves nested { data: ... } gateway response accurately", async () => {
+    const feed = await client.getLatestPrice("ETH/USD");
+    assert.equal(feed.symbol, "ETH/USD");
+    assert.equal(feed.price, 2500);
+    assert.equal(feed.confidence, 2.5);
+    assert.equal(feed.slot, 1492000);
+    assert.equal(feed.publishersCount, 6);
+  });
+
   await t.test("calculateSafeValuation applies asymmetric bounds", async () => {
     // Collateral valuation with k=1.0: P - k * conf = 68000 - 200 = 67800
     const collateral = await client.calculateSafeValuation("BTC/USD", "collateral", { k: 1.0 });
@@ -216,6 +246,35 @@ test("OracleClient v2: getLatestPrice and calculateSafeValuation", async (t) => 
   await t.test("estimateComputeUnits produces deterministic gas estimates", () => {
     assert.equal(client.estimateComputeUnits(1), 6000);
     assert.equal(client.estimateComputeUnits(6), 18500);
+  });
+
+  await t.test("getLatestPriceUpdates throws on empty symbol array", async () => {
+    await assert.rejects(async () => {
+      await client.getLatestPriceUpdates([]);
+    }, /symbols array must contain at least one symbol/);
+  });
+
+  await t.test("getBenchmarkPrice throws on invalid slot format", async () => {
+    await assert.rejects(async () => {
+      await client.getBenchmarkPrice("BTC", "invalid" as any);
+    }, /Invalid slot parameter/);
+  });
+
+  await t.test("getCrossRate throws when base and quote are identical", async () => {
+    await assert.rejects(async () => {
+      await client.getCrossRate("BTC", "BTC");
+    }, /Base and quote symbols must be distinct/);
+  });
+
+  await t.test("calculatePerpMarkPrice handles NaN and negative inputs safely", () => {
+    const nanRes = client.calculatePerpMarkPrice(60000, NaN);
+    assert.equal(nanRes.markPrice, 60000);
+    assert.equal(nanRes.fundingRate, 0);
+    assert.equal(nanRes.isClamped, false);
+
+    const negRes = client.calculatePerpMarkPrice(60000, -100);
+    assert.equal(negRes.markPrice, 60000);
+    assert.equal(negRes.fundingRate, 0);
   });
 
   server.close();

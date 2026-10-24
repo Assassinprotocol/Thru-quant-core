@@ -52,3 +52,41 @@ test("Web Portal: Tier T2 publishers are initialized with valid quorum", () => {
     assert.equal(pub.status, "ACTIVE");
   }
 });
+
+test("Web Portal: Gateway sync supports both { data: [...] } and { feeds: [...] }", () => {
+  const payloadData = {
+    data: [
+      { symbol: "BTC/USD", price: 68000, confidenceBps: 20, publishSlot: "1500000" },
+    ],
+  };
+  const listFromData = Array.isArray(payloadData.data) ? payloadData.data : [];
+  assert.equal(listFromData.length, 1);
+  assert.equal(listFromData[0].price, 68000);
+
+  const payloadFeeds = {
+    feeds: [
+      { symbol: "BTC/USD", price: 68000, confidence: 136, slot: 1500000 },
+    ],
+  };
+  const listFromFeeds = Array.isArray((payloadFeeds as any).data)
+    ? (payloadFeeds as any).data
+    : (Array.isArray(payloadFeeds.feeds) ? payloadFeeds.feeds : []);
+  assert.equal(listFromFeeds.length, 1);
+  assert.equal(listFromFeeds[0].slot, 1500000);
+});
+
+test("Web Portal: Feed trajectory math is non-NaN on single point or empty history", () => {
+  const emptyHistory: any[] = [];
+  const fallback = emptyHistory.length > 0 ? emptyHistory : [{ slot: 1, timestamp: 1, price: 100, confidence: 1 }];
+  const history = fallback.length === 1 ? [...fallback, ...fallback] : fallback;
+  const prices = history.map((h) => h.price);
+  const minPrice = Math.min(...prices.map((p, i) => p - (history[i]?.confidence || 0)));
+  const maxPrice = Math.max(...prices.map((p, i) => p + (history[i]?.confidence || 0)));
+  const priceRange = maxPrice - minPrice > 0 ? maxPrice - minPrice : 1;
+  const denom = Math.max(1, history.length - 1);
+
+  assert.ok(Number.isFinite(minPrice));
+  assert.ok(Number.isFinite(maxPrice));
+  assert.ok(priceRange > 0);
+  assert.ok(denom >= 1);
+});

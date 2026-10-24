@@ -212,6 +212,28 @@ describe("Gateway v2 API", () => {
 
     const resNotFound = await app.inject({ method: "GET", url: "/v2/feeds/BTC/benchmark?slot=999999" });
     assert.equal(resNotFound.statusCode, 404);
+
+    const resInvalidSlot = await app.inject({ method: "GET", url: "/v2/feeds/BTC/benchmark?slot=abc" });
+    assert.equal(resInvalidSlot.statusCode, 400);
+    assert.equal(resInvalidSlot.json().code, "ORACLE_INVALID_SLOT");
+
+    const resInvalidPathSlot = await app.inject({ method: "GET", url: "/v2/updates/price/notanumber" });
+    assert.equal(resInvalidPathSlot.statusCode, 400);
+    assert.equal(resInvalidPathSlot.json().code, "ORACLE_INVALID_SLOT");
+  });
+
+  test("GET /v2/updates/price/latest reports unresolved symbols when requested", async () => {
+    const res = await app.inject({ method: "GET", url: "/v2/updates/price/latest?symbols=BTC,UNKNOWN_COIN" });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    assert.equal(body.count, 1);
+    assert.deepEqual(body.unresolved, ["UNKNOWN_COIN"]);
+  });
+
+  test("unknown endpoint triggers standardized 404 handler", async () => {
+    const res = await app.inject({ method: "GET", url: "/v2/unknown/endpoint" });
+    assert.equal(res.statusCode, 404);
+    assert.equal(res.json().code, "ORACLE_ENDPOINT_NOT_FOUND");
   });
 
   test("GET /v2/feeds/:base/:quote synthesizes triangular cross rate", async () => {

@@ -174,12 +174,13 @@ export function createMcpServer(config: McpConfig = {}) {
           const res = await fetch(`${gatewayUrl}/v2/risk`);
           if (res.ok) {
             const data = (await res.json()) as any;
+            const signalList: any[] = Array.isArray(data.data) ? data.data : (Array.isArray(data.signals) ? data.signals : []);
             if (args.symbol) {
               const filter = String(args.symbol).trim().toUpperCase();
-              const match = (data.signals || []).find((s: any) => s.symbol === filter || s.symbol === `${filter}/USD`);
+              const match = signalList.find((s: any) => s.symbol === filter || s.symbol === `${filter}/USD`);
               return match || { symbol: filter, error: "Symbol not found in risk register" };
             }
-            return data;
+            return { signals: signalList, count: signalList.length, evaluatedAt: data.evaluatedAt };
           }
         } catch {
           // Fallback response
@@ -218,6 +219,9 @@ export function createMcpServer(config: McpConfig = {}) {
       case "get_perp_mark_price": {
         const symbol = String(args.symbol || "BTC");
         const orderbookMid = Number(args.orderbook_mid);
+        if (!Number.isFinite(orderbookMid) || orderbookMid <= 0) {
+          throw new Error("orderbook_mid must be a positive finite number");
+        }
         const maxDevBps = Number(args.max_deviation_bps || 300);
         const quote = await client.getLatestPrice(symbol);
         const perp = client.calculatePerpMarkPrice(quote.price, orderbookMid, maxDevBps);
@@ -234,8 +238,11 @@ export function createMcpServer(config: McpConfig = {}) {
       }
 
       case "get_cross_rate": {
-        const base = String(args.base_symbol || "ETH");
-        const quote = String(args.quote_symbol || "BTC");
+        const base = String(args.base_symbol || "ETH").trim().toUpperCase();
+        const quote = String(args.quote_symbol || "BTC").trim().toUpperCase();
+        if (base === quote) {
+          throw new Error("base_symbol and quote_symbol must be distinct");
+        }
         const cross = await client.getCrossRate(base, quote);
         return {
           symbol: cross.data.symbol,

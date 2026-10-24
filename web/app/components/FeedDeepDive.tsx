@@ -11,11 +11,14 @@ export function FeedDeepDive({ feed }: FeedDeepDiveProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [copiedHex, setCopiedHex] = useState(false);
 
-  const history = feed.history;
+  const rawHistory = feed.history && feed.history.length > 0 ? feed.history : [
+    { slot: feed.slot, timestamp: feed.timestamp, price: feed.price, confidence: feed.confidence }
+  ];
+  const history = rawHistory.length === 1 ? [...rawHistory, ...rawHistory] : rawHistory;
   const prices = history.map((h) => h.price);
-  const minPrice = Math.min(...prices.map((p, i) => p - history[i].confidence));
-  const maxPrice = Math.max(...prices.map((p, i) => p + history[i].confidence));
-  const priceRange = maxPrice - minPrice || 1;
+  const minPrice = Math.min(...prices.map((p, i) => p - (history[i]?.confidence || 0)));
+  const maxPrice = Math.max(...prices.map((p, i) => p + (history[i]?.confidence || 0)));
+  const priceRange = maxPrice - minPrice > 0 ? maxPrice - minPrice : 1;
 
   const width = 640;
   const height = 220;
@@ -23,7 +26,8 @@ export function FeedDeepDive({ feed }: FeedDeepDiveProps) {
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
-  const getX = (index: number) => padding.left + (index / (history.length - 1)) * chartW;
+  const denom = Math.max(1, history.length - 1);
+  const getX = (index: number) => padding.left + (index / denom) * chartW;
   const getY = (price: number) => padding.top + chartH - ((price - minPrice) / priceRange) * chartH;
 
   const pricePath = history

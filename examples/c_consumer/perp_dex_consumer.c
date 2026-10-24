@@ -37,8 +37,9 @@ thru_consumer_status_t evaluate_perp_mark_and_funding(
         return THRU_CONSUMER_ERR_PRICE_ZERO;
     }
 
+    __extension__ typedef unsigned __int128 u128_t;
     int64_t raw_delta = (int64_t)params->orderbook_mid_price - (int64_t)index_price;
-    int64_t max_delta = (int64_t)((index_price * params->max_clamping_deviation_bps) / 10000ULL);
+    int64_t max_delta = (int64_t)(((u128_t)index_price * params->max_clamping_deviation_bps) / 10000ULL);
 
     int64_t clamped_delta = raw_delta;
     bool clamped = false;
@@ -58,9 +59,7 @@ thru_consumer_status_t evaluate_perp_mark_and_funding(
     }
     out_result->is_clamped = clamped;
 
-    q64_t delta_q64 = q64_from_int(clamped_delta);
-    q64_t index_q64 = q64_from_int((int64_t)index_price);
-    q64_t premium_rate = q64_div(delta_q64, index_q64);
+    q64_t premium_rate = q64_from_ratio(clamped_delta, (int64_t)index_price);
 
     uint64_t damping_bps = (params->damping_factor_bps > 0) ? params->damping_factor_bps : 10000ULL;
     q64_t damping_q64 = q64_from_ratio((int64_t)damping_bps, 10000);
