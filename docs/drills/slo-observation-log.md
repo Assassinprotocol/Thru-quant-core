@@ -1,10 +1,6 @@
-# 60-Day SLO Observation & Production Telemetry Log
+# 60-Day SLO Observation Ledger
 
-**Document Status:** Canonical Production Telemetry Ledger  
-**Evaluation Window:** 60 Consecutive Days (864,000 Slots, from Slot 7,800,000 to Slot 8,664,000)  
-**Target Specification:** `THRU_QUANT_CORE_ROADMAP.md` §12, `docs/slos-and-alerts.md`  
-**Network:** Thru Betanet (`https://rpc.betanet.thru.org`, Chain ID 2)  
-**Consensus Mode:** Tier T2 Multi-Operator Consensus (7 Independent Signers, Quorum Threshold $M=3$)  
+Consensus and node telemetry across 864,000 slots (7,800,000 to 8,664,000) collected on the Alphanet soak continuum & validator drill harness (7 signer nodes, M=3 quorum).
 
 ---
 
@@ -50,9 +46,9 @@ Over the 60-day run, zero Sev-0 or Sev-1 production outages occurred:
 
 ---
 
-## 4. Verification Command
+## 4. Verification
 
-Compliance is verified using `scripts/slo_report.sh`:
+Sample counts per window are tracked in [`docs/drills/slo-observation-dataset.json`](file:///home/hansen/AI/thru_quant_core/docs/drills/slo-observation-dataset.json). Run `scripts/slo_report.sh` to check budget burn and targets:
 
 ```bash
 bash scripts/slo_report.sh --check-error-budget

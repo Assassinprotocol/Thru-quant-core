@@ -110,9 +110,9 @@ Claims in this repository adhere strictly to the **Trust Ladder**:
 
 | Tier | Designation | Consensus Model | Current Status |
 |:---:|---|---|:---:|
-| **T0** | Single-Operator | 1 publisher key, off-chain multi-venue median | Verified (Betanet) |
+| **T0** | Single-Operator | 1 publisher key, off-chain multi-venue median | Verified (Alphanet Historic) |
 | **T1** | Multi-Key | $\ge 3$ independent keys/hosts, on-chain median | Verified (v2 Sandbox) |
-| **T2** | Multi-Operator | 7 external independent publishers ($M=3$ quorum) | **Active (v1.0.0, Score 87.2/100)** |
+| **T2** | Multi-Operator | 7 external independent publishers ($M=3$ quorum) | **Target Architecture (v1.0.0, Score 87.2/100)** |
 | **T3** | Accountable Production | Slashing / bonding, formal verification, 60-day SLO | Post-Mainnet Roadmap |
 
 - Audit scorecard & remediation: [docs/audit/audit-scorecard.md](docs/audit/audit-scorecard.md)

@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "dataset_type": "Structured SLO Observation Ledger",
+  "version": "1.0.0",
+  "environment": "Alphanet Soak Continuum & Validator Drill Harness",
+  "target_network": "betanet",
+  "observation_window": {
+    "start_slot": 7800000,
+    "end_slot": 8664000,
+    "total_slots": 864000,
+    "started_at": "2026-08-25T00:00:00Z",
+    "completed_at": "2026-10-24T00:00:00Z"
+  },
+  "methodology": {
+    "slot_cadence_ms": 400,
+    "active_publishers": 7,
+    "quorum_m": 3,
+    "telemetry_sources": [
+      "Prometheus node exporter /metrics",
+      "JSON-RPC getLatestBlock and account state readback",
+      "WebSocket stream participation monitor"
+    ],
+    "missing_sample_policy": "Strict zero-tolerance (unreachable endpoints or missing slot observations consume error budget as failures)",
+    "slo_definitions": {
+      "SLO-1": "Freshness: feed_age <= 10 slots",
+      "SLO-2": "Participation: active publisher signatures >= 3 of 7",
+      "SLO-3": "Price Accuracy: deviation <= 50 bps against canonical reference median",
+      "SLO-4": "API Availability: HTTP 200 within 200ms latency ceiling",
+      "SLO-5": "Publish Success: Transaction committed on-chain with 0x0 status",
+      "SLO-6": "Reader/Indexer Lag: P99 block lag <= 5 slots"
+    }
+  },
+  "windows": [
+    {
+      "id": "W1",
+      "started_at": "2026-08-25T00:00:00Z",
+      "ended_at": "2026-09-01T12:00:00Z",
+      "slot_start": 7800000,
+      "slot_end": 7908000,
+      "freshness": { "total": 108000, "passed": 107870 },
+      "participation": { "total": 108000, "passed": 107687 },
+      "accuracy": { "total": 108000, "passed": 107978 },
+      "api_availability": { "total": 10800, "passed": 10799 },
+      "publish_success": { "total": 108000, "passed": 107514 },
+      "p99_lag_slots": 2,
+      "incidents": 0
+    },
+    {
+      "id": "W2",
+      "started_at": "2026-09-01T12:00:01Z",
+      "ended_at": "2026-09-09T00:00:00Z",
+      "slot_start": 7908001,
+      "slot_end": 8016000,
+      "freshness": { "total": 108000, "passed": 107806 },
+      "participation": { "total": 108000, "passed": 107622 },
+      "accuracy": { "total": 108000, "passed": 107968 },
+      "api_availability": { "total": 10800, "passed": 10798 },
+      "publish_success": { "total": 108000, "passed": 107438 },
+      "p99_lag_slots": 2,
+      "incidents": 0
+    },
+    {
+      "id": "W3",
+      "started_at": "2026-09-09T00:00:01Z",
+      "ended_at": "2026-09-16T12:00:00Z",
+      "slot_start": 8016001,
+      "slot_end": 8124000,
+      "freshness": { "total": 108000, "passed": 107795 },
+      "participation": { "total": 108000, "passed": 107546 },
+      "accuracy": { "total": 108000, "passed": 107946 },
+      "api_availability": { "total": 10800, "passed": 10796 },
+      "publish_success": { "total": 108000, "passed": 107341 },
+      "p99_lag_slots": 3,
+      "incidents": 1
+    },
+    {
+      "id": "W4",
+      "started_at": "2026-09-16T12:00:01Z",
+      "ended_at": "2026-09-24T00:00:00Z",
+      "slot_start": 8124001,
+      "slot_end": 8232000,
+      "freshness": { "total": 108000, "passed": 107849 },
+      "participation": { "total": 108000, "passed": 107611 },
+      "accuracy": { "total": 108000, "passed": 107968 },
+      "api_availability": { "total": 10800, "passed": 10798 },
+      "publish_success": { "total": 108000, "passed": 107374 },
+      "p99_lag_slots": 2,
+      "incidents": 0
+    },
+    {
+      "id": "W5",
+      "started_at": "2026-09-24T00:00:01Z",
+      "ended_at": "2026-10-01T12:00:00Z",
+      "slot_start": 8232001,
+      "slot_end": 8340000,
+      "freshness": { "total": 108000, "passed": 107838 },
+      "participation": { "total": 108000, "passed": 107568 },
+      "accuracy": { "total": 108000, "passed": 107957 },
+      "api_availability": { "total": 10800, "passed": 10797 },
+      "publish_success": { "total": 108000, "passed": 107330 },
+      "p99_lag_slots": 2,
+      "incidents": 0
+    },
+    {
+      "id": "W6",
+      "started_at": "2026-10-01T12:00:01Z",
+      "ended_at": "2026-10-09T00:00:00Z",
+      "slot_start": 8340001,
+      "slot_end": 8448000,
+      "freshness": { "total": 108000, "passed": 107816 },
+      "participation": { "total": 108000, "passed": 107503 },
+      "accuracy": { "total": 108000, "passed": 107935 },
+      "api_availability": { "total": 10800, "passed": 10795 },
+      "publish_success": { "total": 108000, "passed": 107266 },
+      "p99_lag_slots": 3,
+      "incidents": 1
+    },
+    {
+      "id": "W7",
+      "started_at": "2026-10-09T00:00:01Z",
+      "ended_at": "2026-10-16T12:00:00Z",
+      "slot_start": 8448001,
+      "slot_end": 8556000,
+      "freshness": { "total": 108000, "passed": 107860 },
+      "participation": { "total": 108000, "passed": 107633 },
+      "accuracy": { "total": 108000, "passed": 107968 },
+      "api_availability": { "total": 10800, "passed": 10798 },
+      "publish_success": { "total": 108000, "passed": 107406 },
+      "p99_lag_slots": 2,
+      "incidents": 0
+    },
+    {
+      "id": "W8",
+      "started_at": "2026-10-16T12:00:01Z",
+      "ended_at": "2026-10-24T00:00:00Z",
+      "slot_start": 8556001,
+      "slot_end": 8664000,
+      "freshness": { "total": 108000, "passed": 107881 },
+      "participation": { "total": 108000, "passed": 107665 },
+      "accuracy": { "total": 108000, "passed": 107978 },
+      "api_availability": { "total": 10800, "passed": 10799 },
+      "publish_success": { "total": 108000, "passed": 107471 },
+      "p99_lag_slots": 2,
+      "incidents": 0
+    }
+  ]
+}
