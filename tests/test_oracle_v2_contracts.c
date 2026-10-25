@@ -145,6 +145,22 @@ static void test_registry_init(void) {
     };
     for (int i = 0; i < 5; i++) memset(args.admin_keys[i], i + 1, 32);
 
+    /* Boundary checks for min_publishers (< 3 or > ORACLE_V2_MAX_PUBLISHERS) */
+    args.min_publishers = 2;
+    if (setjmp(g_test_jmp) == 0) {
+        start(&args, sizeof(args));
+    }
+    assert(g_reverted && g_last_revert == ORACLE_V2_ERR_INSUFFICIENT_SIGNERS);
+
+    args.min_publishers = ORACLE_V2_MAX_PUBLISHERS + 1;
+    g_reverted = false;
+    if (setjmp(g_test_jmp) == 0) {
+        start(&args, sizeof(args));
+    }
+    assert(g_reverted && g_last_revert == ORACLE_V2_ERR_INSUFFICIENT_SIGNERS);
+
+    args.min_publishers = 3;
+    g_reverted = false;
     if (setjmp(g_test_jmp) == 0) {
         start(&args, sizeof(args));
     }

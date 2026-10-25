@@ -20,44 +20,49 @@ for arg in "$@"; do
       ;;
     -h|--help)
       echo "Usage: $0 [--json | --markdown] [--check-error-budget]"
+      echo "Computes compliance & error budgets from weekly observation windows in docs/drills/slo-observation-log.md"
       exit 0
       ;;
   esac
 done
 
-SLO1_VAL=99.84
 SLO1_TARGET=99.50
-SLO1_CONSUMED=0.16
-
-SLO2_VAL=99.62
 SLO2_TARGET=99.00
-SLO2_CONSUMED=0.38
-
-SLO3_VAL=99.96
 SLO3_TARGET=99.90
-SLO3_CONSUMED=0.04
-
-SLO4_VAL=99.97
 SLO4_TARGET=99.90
-SLO4_CONSUMED=0.03
-
-SLO5_VAL=99.41
 SLO5_TARGET=99.00
-SLO5_CONSUMED=0.59
-
-SLO6_VAL=2
 SLO6_TARGET=5
 
-# Extract empirical numbers from observation ledger if present
+SLO1_VAL=99.84
+SLO2_VAL=99.62
+SLO3_VAL=99.96
+SLO4_VAL=99.97
+SLO5_VAL=99.41
+SLO6_VAL=2
+
+# Recompute empirical means dynamically from weekly observation ledger windows
 LOG_FILE="$ROOT_DIR/docs/drills/slo-observation-log.md"
 if [ -f "$LOG_FILE" ]; then
-  SLO1_VAL=$(grep "SLO-1: Freshness" "$LOG_FILE" | grep -oE '\*\*[0-9]+\.[0-9]+%\*\*' | tr -d '*%' || echo "$SLO1_VAL")
-  SLO2_VAL=$(grep "SLO-2: Participation" "$LOG_FILE" | grep -oE '\*\*[0-9]+\.[0-9]+%\*\*' | tr -d '*%' || echo "$SLO2_VAL")
-  SLO3_VAL=$(grep "SLO-3: Price Accuracy" "$LOG_FILE" | grep -oE '\*\*[0-9]+\.[0-9]+%\*\*' | tr -d '*%' || echo "$SLO3_VAL")
-  SLO4_VAL=$(grep "SLO-4: API Availability" "$LOG_FILE" | grep -oE '\*\*[0-9]+\.[0-9]+%\*\*' | tr -d '*%' || echo "$SLO4_VAL")
-  SLO5_VAL=$(grep "SLO-5: Publish Success" "$LOG_FILE" | grep -oE '\*\*[0-9]+\.[0-9]+%\*\*' | tr -d '*%' || echo "$SLO5_VAL")
-  SLO6_VAL=$(grep "SLO-6: Reader/Indexer Lag" "$LOG_FILE" | grep -oE '\*\*[0-9]+ slots' | grep -oE '[0-9]+' || echo "$SLO6_VAL")
+  eval "$(awk -F'|' '/\*\*W[0-9]\*\*/ {
+    gsub(/%|[ \t]/, "", $4); s1 += $4;
+    gsub(/%|[ \t]/, "", $5); s2 += $5;
+    gsub(/%|[ \t]/, "", $6); s3 += $6;
+    gsub(/%|[ \t]/, "", $7); s4 += $7;
+    gsub(/%|[ \t]/, "", $8); s5 += $8;
+    gsub(/[^0-9]/, "", $9); if ($9 > max_lag) max_lag = $9;
+    n++;
+  } END {
+    if (n > 0) {
+      printf "SLO1_VAL=%.2f\nSLO2_VAL=%.2f\nSLO3_VAL=%.2f\nSLO4_VAL=%.2f\nSLO5_VAL=%.2f\nSLO6_VAL=%d\n", s1/n, s2/n, s3/n, s4/n, s5/n, max_lag;
+    }
+  }' "$LOG_FILE")"
 fi
+
+SLO1_CONSUMED=$(awk -v a="$SLO1_VAL" 'BEGIN { printf "%.2f", (100 - a) }')
+SLO2_CONSUMED=$(awk -v a="$SLO2_VAL" 'BEGIN { printf "%.2f", (100 - a) }')
+SLO3_CONSUMED=$(awk -v a="$SLO3_VAL" 'BEGIN { printf "%.2f", (100 - a) }')
+SLO4_CONSUMED=$(awk -v a="$SLO4_VAL" 'BEGIN { printf "%.2f", (100 - a) }')
+SLO5_CONSUMED=$(awk -v a="$SLO5_VAL" 'BEGIN { printf "%.2f", (100 - a) }')
 
 FAILED=0
 

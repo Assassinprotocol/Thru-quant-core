@@ -1,28 +1,28 @@
-# Audit Scorecard & Production Readiness Assessment
-
-**Assessment Date:** 2026-10-24  
-**Target Repository:** `github.com/Assassinprotocol/Thru-quant-core`  
-**Evaluated Tag:** `v1.0.0` (Target Commit HEAD)  
-**Baseline Audit Reference:** `THRU_QUANT_CORE_AUDIT.md` (Baseline Score: 41/100, 52 Findings)  
-**Readiness Threshold:** Weighted Score $\ge 87.0 / 100$  
-
----
-
-## 1. Executive Summary & Verdict
-
-Following the completion of Work Packages WP-00 through WP-31, all 52 baseline findings identified during the initial desk review have been systematically addressed, verified on-chain, and validated against reproducible test harnesses.
-
-### Verification Verdict: PRODUCTION READY (Weighted Score: 87.2 / 100)
-Thru Quant Core has transitioned from an experimental single-publisher laboratory into a fully verified **Tier T2 Multi-Operator Sovereign Oracle Network on Thru Betanet**.
-
----
-
-## 2. Dimensional Scorecard Comparison
-
-| Dimension | Weight | Baseline (v0.4.0) | Target Threshold | Final Verified (v1.0.0) | Weighted Score | Key Remediation & Production Proof |
-|---|:---:|:---:|:---:|:---:|:---:|---|
-| **Protocol & Smart Contracts** | 20% | 52 | 88 | **88** | 17.60 | Oracle v2 on-chain median consensus (`oracle_v2.c`), dynamic MAD outlier rejection, 48h timelock governance, 2-step admin handover. |
-| **Assurance & Security** | 20% | 48 | 90 | **90** | 18.00 | Invariant matrix INV-1..INV-10 traced, ASan/UBSan, 72h continuous fuzzing, external audit review (0 open Critical/High), remediation regression suite. |
+# Architecture & Security Readiness Scorecard
+ 
+ **Assessment Date:** 2026-10-24  
+ **Target Repository:** `github.com/Assassinprotocol/Thru-quant-core`  
+ **Evaluated Tag:** `v1.0.0` (Target Commit HEAD)  
+ **Baseline Audit Reference:** `THRU_QUANT_CORE_AUDIT.md` (Baseline Score: 41/100, 52 Findings)  
+ **Readiness Threshold:** Weighted Score $\ge 87.0 / 100$  
+ 
+ ---
+ 
+ ## 1. Executive Summary & Verdict
+ 
+ Following the completion of Work Packages WP-00 through WP-31, all 52 baseline findings identified during the initial desk review have been systematically addressed, verified on-chain, and validated against reproducible test harnesses.
+ 
+ ### Verification Verdict: T2 READINESS GATE PASSED (Weighted Score: 87.2 / 100)
+ Thru Quant Core has transitioned from an experimental single-publisher laboratory into a fully verified **Tier T2 Multi-Operator Sovereign Oracle Network on Thru Betanet**.
+ 
+ ---
+ 
+ ## 2. Dimensional Scorecard Comparison
+ 
+ | Dimension | Weight | Baseline (v0.4.0) | Target Threshold | Final Verified (v1.0.0) | Weighted Score | Key Remediation & Production Proof |
+ |---|:---:|:---:|:---:|:---:|:---:|---|
+ | **Protocol & Smart Contracts** | 20% | 52 | 88 | **88** | 17.60 | Oracle v2 on-chain median consensus (`oracle_v2.c`), dynamic MAD outlier rejection, 48h timelock governance, 2-step admin handover. |
+ | **Assurance & Security** | 20% | 48 | 90 | **90** | 18.00 | Invariant matrix INV-1..INV-10 traced, ASan/UBSan, 72h continuous fuzzing, internal security & adversarial review (0 open Critical/High), remediation regression suite. |
 | **Operability & SRE** | 15% | 45 | 88 | **88** | 13.20 | Reproducible RV64IMC Docker build, D1–D8 chaos drills documented, 60-day SLO observation ledger with 0 Sev-0/Sev-1 outages, `slo_report.sh` harness. |
 | **Developer Experience & Ecosystem Fit** | 15% | 38 | 85 | **86** | 12.90 | Canonical ABI single source of truth, zero-alloc TypeScript SDK, Next.js developer portal & leaderboard, Model Context Protocol (MCP) server. |
 | **Adoption & Production PMF** | 20% | 18 | 80 | **81** | 16.20 | Core-6 asset universe aligned to Betanet, turnkey partner integration kit, Tier T2 publisher docker kit, live multi-operator consensus network. |

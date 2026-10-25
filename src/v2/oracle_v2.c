@@ -65,7 +65,8 @@ static void handle_init_registry(const void *data, ulong sz) {
         tsdk_revert(ORACLE_V2_ERR_INVALID_SIZE);
     }
     const init_registry_args_t *args = (const init_registry_args_t *)data;
-    if (args->admin_m == 0 || args->admin_m > args->admin_n || args->admin_n > 5 || args->min_publishers < 3) {
+    if (args->admin_m == 0 || args->admin_m > args->admin_n || args->admin_n > 5 ||
+        args->min_publishers < 3 || args->min_publishers > ORACLE_V2_MAX_PUBLISHERS) {
         tsdk_revert(ORACLE_V2_ERR_INSUFFICIENT_SIGNERS);
     }
 

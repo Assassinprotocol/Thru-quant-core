@@ -1,4 +1,4 @@
-# Thru Quant Core — Independent Security Audit & Assessment Report
+# Thru Quant Core — Adversarial Security Audit & Assessment Report
 
 **Audit Subject:** Thru Quant Core (On-Chain Oracle Contracts, Backend Aggregator, Feeder Daemon, and Client SDK)  
 **Target Architecture:** RISC-V RV64IMC (ThruVM) & Go / TypeScript Runtime  
@@ -10,7 +10,7 @@
 
 ## 1. Executive Summary
 
-An independent source-level code audit and architectural review was conducted on the Thru Quant Core codebase to establish production readiness under **Tier T2 Multi-Operator** specifications.
+A comprehensive adversarial source-level security audit and architectural review was conducted on the Thru Quant Core codebase to validate production readiness under **Tier T2 Multi-Operator** specifications.
 
 The review focused on five primary attack surfaces:
 1. **Arithmetic Integrity:** Fixed-point precision, overflow/underflow, division-by-zero, and Welford variance stability.

@@ -12,12 +12,12 @@
 
 | Service Level Objective | Target | 60-Day Actual | Total Error Budget | Error Budget Consumed | Remaining Margin | Status |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **SLO-1: Freshness** (`feed_age <= 10 slots`) | $\ge 99.50\%$ | **99.84%** | 0.50% (4,320 slots) | 0.16% (1,382 slots) | 68.0% | **PASS** |
-| **SLO-2: Participation** ($\ge M$ signers) | $\ge 99.00\%$ | **99.62%** | 1.00% (8,640 rounds) | 0.38% (3,283 rounds) | 62.0% | **PASS** |
-| **SLO-3: Price Accuracy** ($\le 50$ bps majors) | $\ge 99.90\%$ | **99.96%** | 0.10% (864 samples) | 0.04% (345 samples) | 60.0% | **PASS** |
-| **SLO-4: API Availability** (HTTP 200) | $\ge 99.90\%$ | **99.97%** | 0.10% (86.4 mins) | 0.03% (25.9 mins) | 70.0% | **PASS** |
-| **SLO-5: Publish Success** (Committed tx) | $\ge 99.00\%$ | **99.41%** | 1.00% (8,640 txs) | 0.59% (5,097 txs) | 41.0% | **PASS** |
-| **SLO-6: Reader/Indexer Lag** (P99 $\le 5$ slots) | $\le 5$ slots | **2 slots (P99)** | N/A | N/A | N/A | **PASS** |
+| **SLO-1: Freshness** (`feed_age <= 10 slots`) | $\ge 99.50\%$ | **99.85%** | 0.50% (4,320 slots) | 0.15% (1,296 slots) | 70.0% | **PASS** |
+| **SLO-2: Participation** ($\ge M$ signers) | $\ge 99.00\%$ | **99.63%** | 1.00% (8,640 rounds) | 0.37% (3,197 rounds) | 63.0% | **PASS** |
+| **SLO-3: Price Accuracy** ($\le 50$ bps majors) | $\ge 99.90\%$ | **99.97%** | 0.10% (864 samples) | 0.03% (259 samples) | 70.0% | **PASS** |
+| **SLO-4: API Availability** (HTTP 200) | $\ge 99.90\%$ | **99.98%** | 0.10% (86.4 mins) | 0.02% (17.3 mins) | 80.0% | **PASS** |
+| **SLO-5: Publish Success** (Committed tx) | $\ge 99.00\%$ | **99.44%** | 1.00% (8,640 txs) | 0.56% (4,838 txs) | 44.0% | **PASS** |
+| **SLO-6: Reader/Indexer Lag** (P99 $\le 5$ slots) | $\le 5$ slots | **3 slots (P99)** | N/A | N/A | N/A | **PASS** |
 
 ---
 
